@@ -17,31 +17,30 @@
 package com.example.helloandroidxr.ui.components
 
 import android.annotation.SuppressLint
-import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.xr.compose.platform.LocalSession
 import androidx.xr.compose.spatial.PlanarEmbeddedSubspace
-import androidx.xr.compose.subspace.SceneCoreEntity
-import androidx.xr.compose.subspace.SceneCoreEntitySizeAdapter
+import androidx.xr.compose.subspace.SpatialGltfModel
+import androidx.xr.compose.subspace.SpatialGltfModelAnimation
+import androidx.xr.compose.subspace.SpatialGltfModelSource
+import androidx.xr.compose.subspace.draw.scale
 import androidx.xr.compose.subspace.layout.SubspaceModifier
-import androidx.xr.compose.subspace.layout.scale
+import androidx.xr.compose.subspace.layout.onSizeChanged
+import androidx.xr.compose.subspace.rememberSpatialGltfModelState
 import androidx.xr.compose.unit.Meter
 import androidx.xr.runtime.math.Vector4
 import androidx.xr.scenecore.AlphaMode
-import androidx.xr.scenecore.GltfModelEntity
 import androidx.xr.scenecore.KhronosPbrMaterial
 import androidx.xr.scenecore.Texture
-import com.example.helloandroidxr.bugdroid.BugdroidController
 import com.example.helloandroidxr.viewmodel.ModelTransform
+import java.nio.file.Paths
 import kotlin.io.path.Path
 
 // Bugdroid glb height in meters
@@ -50,9 +49,7 @@ private const val bugdroidHeight = 2.08f
 // The desired amount of the available layout height to use for the bugdroid
 private const val fillRatio = 0.5f
 
-const val TAG = "BugdroidModel"
-
-@SuppressLint("RestrictedApi")
+@SuppressLint("NewApi", "RestrictedApi")
 @Composable
 fun BugdroidModel(
     modelTransform: ModelTransform,
@@ -61,93 +58,113 @@ fun BugdroidModel(
     modifier: SubspaceModifier = SubspaceModifier,
 ) {
     val xrSession = LocalSession.current
+    val density = LocalDensity.current
+    var scaleFromLayout by remember { mutableFloatStateOf(1f) }
+
     if (xrSession != null && showBugdroid) {
-        val context = LocalContext.current
-        val coroutineScope = rememberCoroutineScope()
-        val bugdroidController = remember(xrSession, context, coroutineScope) {
-            BugdroidController(xrSession, context, coroutineScope)
+        // Initialize and remember the state of the glTF model, loading it from the assets folder.
+        val bugdroidModelState = rememberSpatialGltfModelState(
+            source = SpatialGltfModelSource.fromPath(
+                Paths.get("models/bugdroid_animated_wave.glb")
+            )
+        )
+
+        // Find a specific node by name to apply modifications, such as material overrides.
+        val bugdroidNode = remember(bugdroidModelState.nodes) {
+            bugdroidModelState.nodes.find { it.name == "Droid_Solo:Bugdroid" }
         }
-        val gltfModel = bugdroidController.gltfModel
-        gltfModel?.let { model ->
-            PlanarEmbeddedSubspace {
-                val density = LocalDensity.current
-                var scaleFromLayout by remember { mutableFloatStateOf(1f) }
-                var pbrMaterial by remember { mutableStateOf<KhronosPbrMaterial?>(null) }
-                LaunchedEffect(xrSession) {
-                    try {
-                        pbrMaterial = KhronosPbrMaterial.create(
-                            session = xrSession,
-                            alphaMode = AlphaMode.OPAQUE
-                        )
-                        val texture = Texture.create(
-                            session = xrSession,
-                            path = Path("white.png") // Used as a base texture for material properties.
-                        )
-                        pbrMaterial?.setOcclusionTexture(
-                            texture = texture,
-                            strength = modelTransform.materialProperties.ambientOcclusion
-                        )
-                        pbrMaterial?.setBaseColorFactor(
-                            Vector4(
-                                x = modelTransform.materialColor.x,
-                                y = modelTransform.materialColor.y,
-                                z = modelTransform.materialColor.z,
-                                w = modelTransform.materialColor.w
-                            )
-                        )
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error creating material", e)
-                    }
-                }
-                LaunchedEffect(
-                    modelTransform.materialColor.x,
-                    modelTransform.materialColor.y,
-                    modelTransform.materialColor.z,
-                    modelTransform.materialColor.w,
-                    modelTransform.materialProperties.metallic,
-                    modelTransform.materialProperties.roughness,
-                ) {
-                    pbrMaterial?.setBaseColorFactor(
-                        Vector4(
-                            x = modelTransform.materialColor.x,
-                            y = modelTransform.materialColor.y,
-                            z = modelTransform.materialColor.z,
-                            w = modelTransform.materialColor.w
-                        )
+
+        // Maintain a reference to the custom material to avoid re-creating it on every recomposition.
+        var pbrMaterial by remember { mutableStateOf<KhronosPbrMaterial?>(null) }
+
+        // Create and apply a custom PBR material to the model when the XR session or target node changes.
+        LaunchedEffect(xrSession, bugdroidNode) {
+            val material = pbrMaterial ?: KhronosPbrMaterial.create(
+                session = xrSession,
+                alphaMode = AlphaMode.OPAQUE
+            ).also {
+                pbrMaterial = it
+                // Load a texture; using a plain white texture for visibility of the base color factor
+                val texture = Texture.create(
+                    session = xrSession,
+                    path = Path("textures/white.png")
+                )
+
+                // Apply the texture and configure occlusion to define ambient lighting strength.
+                it.setOcclusionTexture(
+                    texture = texture,
+                    strength = modelTransform.materialProperties.ambientOcclusion
+                )
+
+                // Apply the initial material properties. Base Color is RGBA value
+                it.setBaseColorFactor(
+                    Vector4(
+                        x = modelTransform.materialColor.x,
+                        y = modelTransform.materialColor.y,
+                        z = modelTransform.materialColor.z,
+                        w = modelTransform.materialColor.w
                     )
-                    pbrMaterial?.setMetallicFactor(modelTransform.materialProperties.metallic)
-                    pbrMaterial?.setRoughnessFactor(modelTransform.materialProperties.roughness)
+                )
+                it.setMetallicFactor(modelTransform.materialProperties.metallic)
+                it.setRoughnessFactor(modelTransform.materialProperties.roughness)
+            }
+
+            // Apply the custom PBR material to the specific node, overriding original glTF material.
+            bugdroidNode?.setMaterialOverride(
+                material = material
+            )
+        }
+
+        // Update the base color material properties whenever the model transform state changes.
+        LaunchedEffect(modelTransform.materialColor, pbrMaterial) {
+            pbrMaterial?.setBaseColorFactor(
+                Vector4(
+                    x = modelTransform.materialColor.x,
+                    y = modelTransform.materialColor.y,
+                    z = modelTransform.materialColor.z,
+                    w = modelTransform.materialColor.w
+                )
+            )
+        }
+
+        // Update the metallic factor property whenever the model transform state changes.
+        LaunchedEffect(modelTransform.materialProperties.metallic, pbrMaterial) {
+            pbrMaterial?.setMetallicFactor(modelTransform.materialProperties.metallic)
+        }
+
+        // Update the roughness property whenever the model transform state changes.
+        LaunchedEffect(modelTransform.materialProperties.roughness, pbrMaterial) {
+            pbrMaterial?.setRoughnessFactor(modelTransform.materialProperties.roughness)
+        }
+
+        // Control the model's animation state based on the animateBugdroid flag.
+        LaunchedEffect(bugdroidModelState.animations) {
+            val animation = bugdroidModelState.animations.find {
+                it.name == "Armature|Take 001|BaseLayer"
+            }
+            if (animateBugdroid) {
+                if (animation?.animationState != SpatialGltfModelAnimation.AnimationState.Playing) {
+                    animation?.loop()
                 }
-                SceneCoreEntity(
-                    factory = {
-                        GltfModelEntity.create(xrSession, model)
-                    },
-                    update = { entity: GltfModelEntity ->
-                        pbrMaterial?.let { newMaterial ->
-                            entity.setMaterialOverride(
-                                material = newMaterial,
-                                "Droid_Solo:Bugdroid"
-                            )
-                            if (animateBugdroid) {
-                                entity.startAnimation(
-                                    loop = true, animationName = "Armature|Take 001|BaseLayer"
-                                )
-                            } else {
-                                entity.stopAnimation()
-                            }
-                        }
-                    },
-                    sizeAdapter = SceneCoreEntitySizeAdapter(onLayoutSizeChanged = { size ->
-                        // Calculate the scale we should use for the entity based on the size the
-                        // layout is setting on the SceneCoreEntity
+            } else {
+                animation?.stop()
+            }
+        }
+
+        // Use a PlanarEmbeddedSubspace to anchor the 3D model within the 2D layout.
+        PlanarEmbeddedSubspace {
+            SpatialGltfModel(
+                state = bugdroidModelState,
+                modifier = modifier
+                    .onSizeChanged { size ->
+                        // Calculate the scale to use for the entity based on the layout size
                         val scaleToFillLayoutHeight = Meter
                             .fromPixel(size.height.toFloat(), density).toM() / bugdroidHeight
-                        //Limit the scale to a ratio of the available space
+                        // Limit the scale to a ratio of the available space.
                         scaleFromLayout = scaleToFillLayoutHeight * fillRatio
-                    }),
-                    modifier = modifier.scale(scaleFromLayout * modelTransform.scale)
-                )
-            }
+                    }
+                    .scale(scaleFromLayout * modelTransform.scale)
+            )
         }
     }
 }
