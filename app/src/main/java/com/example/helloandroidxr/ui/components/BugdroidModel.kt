@@ -79,7 +79,7 @@ fun BugdroidModel(
 
         // Create and apply a custom PBR material to the model when the XR session or target node changes.
         LaunchedEffect(xrSession, bugdroidNode) {
-            val material = pbrMaterial ?: KhronosPbrMaterial.create(
+            val material = KhronosPbrMaterial.create(
                 session = xrSession,
                 alphaMode = AlphaMode.OPAQUE
             ).also {
