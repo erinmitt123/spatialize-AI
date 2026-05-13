@@ -33,7 +33,7 @@ private const val DEFAULT_Z_OFFSET = 400.0f
 private const val DEFAULT_X_MATERIAL_COLOR = 0.0f
 private const val DEFAULT_Y_MATERIAL_COLOR = 1.0f
 private const val DEFAULT_Z_MATERIAL_COLOR = 0.0f
-private const val DEFAULT_W_MATERIAL_COLOR = 0.0f
+private const val DEFAULT_W_MATERIAL_COLOR = 1.0f
 private const val DEFAULT_AMBIENT_OCCLUSION = 1.0f
 private const val DEFAULT_METALLIC = 0.0f
 private const val DEFAULT_ROUGHNESS = 0.0f
@@ -224,7 +224,8 @@ class BugdroidViewModel : ViewModel() {
     fun resetModel() {
         _uiState.update { currentState ->
             currentState.copy(
-                modelTransform = ModelTransform()
+                modelTransform = ModelTransform(),
+                animateBugdroid = false
             )
         }
     }

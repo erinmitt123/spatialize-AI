@@ -55,24 +55,23 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.window.core.layout.WindowSizeClass
-import androidx.window.core.layout.WindowWidthSizeClass
 import androidx.xr.compose.platform.LocalSpatialCapabilities
 import androidx.xr.compose.platform.LocalSpatialConfiguration
 import androidx.xr.compose.spatial.ContentEdge
 import androidx.xr.compose.spatial.Orbiter
 import androidx.xr.compose.spatial.Subspace
-import androidx.xr.compose.subspace.MovePolicy
-import androidx.xr.compose.subspace.ResizePolicy
 import androidx.xr.compose.subspace.SpatialColumn
 import androidx.xr.compose.subspace.SpatialPanel
 import androidx.xr.compose.subspace.SpatialRow
+import androidx.xr.compose.subspace.draw.alpha
 import androidx.xr.compose.subspace.layout.SubspaceModifier
-import androidx.xr.compose.subspace.layout.alpha
 import androidx.xr.compose.subspace.layout.fillMaxSize
 import androidx.xr.compose.subspace.layout.fillMaxWidth
 import androidx.xr.compose.subspace.layout.height
+import androidx.xr.compose.subspace.layout.movable
 import androidx.xr.compose.subspace.layout.offset
 import androidx.xr.compose.subspace.layout.padding
+import androidx.xr.compose.subspace.layout.resizable
 import androidx.xr.compose.subspace.layout.rotate
 import androidx.xr.compose.subspace.layout.size
 import androidx.xr.compose.subspace.layout.width
@@ -181,18 +180,18 @@ private fun SpatialLayout(
                     SubspaceModifier
                         .alpha(animatedAlpha.value)
                         .size(400.dp)
-                        .padding(bottom = 16.dp),
-                    dragPolicy = MovePolicy(isEnabled = true),
-                    resizePolicy = ResizePolicy(isEnabled = true)
+                        .padding(bottom = 16.dp)
+                        .movable()
+                        .resizable(),
                 ) {
                     firstSupportingContent()
                 }
                 SpatialPanel(
                     SubspaceModifier
                         .alpha(animatedAlpha.value)
-                        .weight(1f),
-                    dragPolicy = MovePolicy(isEnabled = true),
-                    resizePolicy = ResizePolicy(isEnabled = true)
+                        .weight(1f)
+                        .movable()
+                        .resizable(),
                 ) {
                     secondSupportingContent()
                 }
@@ -201,9 +200,9 @@ private fun SpatialLayout(
                 modifier = SubspaceModifier
                     .alpha(animatedAlpha.value)
                     .fillMaxSize()
-                    .padding(left = 16.dp),
-                dragPolicy = MovePolicy(isEnabled = true),
-                resizePolicy = ResizePolicy(isEnabled = true)
+                    .padding(end = 16.dp)
+                    .movable()
+                    .resizable(),
             ) {
                 Column {
                     TopAppBar()
@@ -222,7 +221,7 @@ private fun NonSpatialTwoPaneLayout(
     primaryPane: @Composable () -> Unit,
     secondaryPane: @Composable () -> Unit,
     modifier: Modifier = Modifier,
-    windowSizeClass: WindowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
+    windowSizeClass: WindowSizeClass = currentWindowAdaptiveInfo(supportLargeAndXLargeWidth = true).windowSizeClass
 ) {
     val animatedAlpha = remember { Animatable(0.5f) }
     LaunchedEffect(Unit) {
@@ -241,7 +240,7 @@ private fun NonSpatialTwoPaneLayout(
     ) {
         TopAppBar()
         Spacer(Modifier.height(16.dp))
-        if (windowSizeClass.windowWidthSizeClass == WindowWidthSizeClass.COMPACT) {
+        if (windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.HEIGHT_DP_EXPANDED_LOWER_BOUND)) {
             TopAndBottomPaneLayout(primaryPane, secondaryPane)
         } else {
             SideBySidePaneLayout(primaryPane, secondaryPane)
@@ -305,6 +304,7 @@ private fun TopAndBottomPaneLayout(
 /**
  * Contains controls that decompose into Orbiters when spatial UI is enabled
  */
+@Suppress("DEPRECATION")
 @Composable
 private fun TopAppBar() {
     Row(
