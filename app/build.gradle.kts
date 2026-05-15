@@ -60,7 +60,6 @@ dependencies {
     implementation(libs.androidx.arcore)
     implementation(libs.androidx.scenecore)
     implementation(libs.androidx.compose)
-    implementation(libs.kotlinx.coroutines.guava)
     compileOnly(libs.androidx.extensions.xr) //This is necessary for Proguard minification
 
     implementation(libs.material)

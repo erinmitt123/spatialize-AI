@@ -5,12 +5,11 @@ arcore = "1.0.0-alpha13"
 compose = "1.0.0-alpha13"
 extensionsXr = "1.3.0"
 scenecore = "1.0.0-alpha14"
-kotlinxCoroutinesGuava = "1.10.2"
 kotlin = "2.3.21"
 concurrentFuturesKtx = "1.3.0"
 activityCompose = "1.13.0"
 composeBom = "2026.05.00"
-material = "1.13.0"
+material = "1.14.0"
 adaptiveAndroid = "1.2.0"
 
 [libraries]
@@ -18,7 +17,6 @@ androidx-arcore = { module = "androidx.xr.arcore:arcore", version.ref = "arcore"
 androidx-compose = { module = "androidx.xr.compose:compose", version.ref = "compose" }
 androidx-scenecore = { module = "androidx.xr.scenecore:scenecore", version.ref = "scenecore" }
 androidx-extensions-xr = { module = "com.android.extensions.xr:extensions-xr", version.ref = "extensionsXr" }
-kotlinx-coroutines-guava = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-guava", version.ref = "kotlinxCoroutinesGuava" }
 androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
 material = { module = "com.google.android.material:material", version.ref = "material" }
 androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
