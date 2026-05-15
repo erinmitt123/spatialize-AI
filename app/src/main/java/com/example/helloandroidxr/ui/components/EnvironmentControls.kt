@@ -61,7 +61,7 @@ fun EnvironmentControls(modifier: Modifier = Modifier) {
             EnvironmentController(session, activity.lifecycleScope)
         }
         //load the model early so it's in memory for when we need it
-        val environmentModelName = "green_hills_ktx2_mipmap.glb"
+        val environmentModelName = "environments/green_hills_ktx2_mipmap.glb"
         environmentController.loadModelAsset(environmentModelName)
 
         Surface(modifier.clip(CircleShape)) {
