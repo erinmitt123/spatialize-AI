@@ -68,12 +68,12 @@ import androidx.xr.compose.subspace.layout.SubspaceModifier
 import androidx.xr.compose.subspace.layout.fillMaxSize
 import androidx.xr.compose.subspace.layout.fillMaxWidth
 import androidx.xr.compose.subspace.layout.height
-import androidx.xr.compose.subspace.layout.movable
 import androidx.xr.compose.subspace.layout.offset
 import androidx.xr.compose.subspace.layout.padding
 import androidx.xr.compose.subspace.layout.resizable
 import androidx.xr.compose.subspace.layout.rotate
 import androidx.xr.compose.subspace.layout.size
+import androidx.xr.compose.subspace.layout.transformingMovable
 import androidx.xr.compose.subspace.layout.width
 import androidx.xr.runtime.math.Quaternion
 import com.example.helloandroidxr.R
@@ -181,7 +181,7 @@ private fun SpatialLayout(
                         .alpha(animatedAlpha.value)
                         .size(400.dp)
                         .padding(bottom = 16.dp)
-                        .movable()
+                        .transformingMovable()
                         .resizable(),
                 ) {
                     firstSupportingContent()
@@ -190,7 +190,7 @@ private fun SpatialLayout(
                     SubspaceModifier
                         .alpha(animatedAlpha.value)
                         .weight(1f)
-                        .movable()
+                        .transformingMovable()
                         .resizable(),
                 ) {
                     secondSupportingContent()
@@ -201,7 +201,7 @@ private fun SpatialLayout(
                     .alpha(animatedAlpha.value)
                     .fillMaxSize()
                     .padding(end = 16.dp)
-                    .movable()
+                    .transformingMovable()
                     .resizable(),
             ) {
                 Column {
