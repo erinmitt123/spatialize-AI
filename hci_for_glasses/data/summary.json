@@ -1,0 +1,149 @@
+{
+  "sessions": [
+    {
+      "file": "session_01.json",
+      "session_id": "sess_01_4185",
+      "app": "MindfulSpace VR",
+      "scene": "lounge",
+      "event_count": 32,
+      "expected_rule_ids": [
+        "touch_target_size"
+      ],
+      "issues": [
+        {
+          "kind": "problematic_grab",
+          "target": "settings_toggle",
+          "expected_rule_ids": [
+            "touch_target_size"
+          ],
+          "attempt_count": 4,
+          "fail_count": 3,
+          "fail_rate": 0.75,
+          "fail_distance_min": 0.412,
+          "fail_distance_max": 0.4403,
+          "success_distance": 0.0223,
+          "hesitation_seconds": 2.827
+        }
+      ],
+      "injected_issue": "Injected usability problem: 'settings_toggle' needed 4 grab attempts, 3 failed (75%), failed distance_to_target 0.41-0.44m, final success at 0.02m after 2.83s of injected hand-pose hesitation."
+    },
+    {
+      "file": "session_02.json",
+      "session_id": "sess_02_9742",
+      "app": "FocusRoom",
+      "scene": "settings_hub",
+      "event_count": 32,
+      "expected_rule_ids": [
+        "touch_target_size"
+      ],
+      "issues": [
+        {
+          "kind": "problematic_grab",
+          "target": "settings_toggle",
+          "expected_rule_ids": [
+            "touch_target_size"
+          ],
+          "attempt_count": 4,
+          "fail_count": 3,
+          "fail_rate": 0.75,
+          "fail_distance_min": 0.3052,
+          "fail_distance_max": 0.4739,
+          "success_distance": 0.0233,
+          "hesitation_seconds": 2.879
+        }
+      ],
+      "injected_issue": "Injected usability problem: 'settings_toggle' needed 4 grab attempts, 3 failed (75%), failed distance_to_target 0.31-0.47m, final success at 0.02m after 2.88s of injected hand-pose hesitation."
+    },
+    {
+      "file": "session_03.json",
+      "session_id": "sess_03_3463",
+      "app": "GalleryWalk",
+      "scene": "settings_hub",
+      "event_count": 33,
+      "expected_rule_ids": [
+        "touch_target_size"
+      ],
+      "issues": [
+        {
+          "kind": "problematic_grab",
+          "target": "settings_toggle",
+          "expected_rule_ids": [
+            "touch_target_size"
+          ],
+          "attempt_count": 4,
+          "fail_count": 3,
+          "fail_rate": 0.75,
+          "fail_distance_min": 0.4117,
+          "fail_distance_max": 0.4379,
+          "success_distance": 0.0462,
+          "hesitation_seconds": 2.474
+        }
+      ],
+      "injected_issue": "Injected usability problem: 'settings_toggle' needed 4 grab attempts, 3 failed (75%), failed distance_to_target 0.41-0.44m, final success at 0.05m after 2.47s of injected hand-pose hesitation."
+    },
+    {
+      "file": "session_04.json",
+      "session_id": "sess_04_3828",
+      "app": "MindfulSpace VR",
+      "scene": "gallery_a",
+      "event_count": 19,
+      "expected_rule_ids": [],
+      "issues": [
+        {
+          "kind": "clean_baseline",
+          "target": "door_handle",
+          "expected_rule_ids": [],
+          "attempt_count": 1,
+          "fail_count": 0,
+          "fail_rate": 0.0,
+          "success_distance": 0.041,
+          "hesitation_seconds": 0.377
+        }
+      ],
+      "injected_issue": "Clean baseline: 'door_handle' succeeded on the first try after 0.38s of hesitation at 0.04m (no injected issue)."
+    },
+    {
+      "file": "session_05.json",
+      "session_id": "sess_05_7771",
+      "app": "MindfulSpace VR",
+      "scene": "lounge",
+      "event_count": 18,
+      "expected_rule_ids": [],
+      "issues": [
+        {
+          "kind": "clean_baseline",
+          "target": "door_handle",
+          "expected_rule_ids": [],
+          "attempt_count": 1,
+          "fail_count": 0,
+          "fail_rate": 0.0,
+          "success_distance": 0.0567,
+          "hesitation_seconds": 0.483
+        }
+      ],
+      "injected_issue": "Clean baseline: 'door_handle' succeeded on the first try after 0.48s of hesitation at 0.06m (no injected issue)."
+    },
+    {
+      "file": "session_06.json",
+      "session_id": "sess_06_7841",
+      "app": "FocusRoom",
+      "scene": "main_menu",
+      "event_count": 19,
+      "expected_rule_ids": [
+        "content_type_in_elevated_context"
+      ],
+      "issues": [
+        {
+          "kind": "ui_issue_flag",
+          "component": "notes_panel",
+          "issue_flag": "content_scroll_in_elevated_panel",
+          "expected_rule_ids": [
+            "content_type_in_elevated_context"
+          ],
+          "t": 2.922
+        }
+      ],
+      "injected_issue": "Injected UI issue: ui_interaction on 'notes_panel' at t=2.92s flagged 'content_scroll_in_elevated_panel'."
+    }
+  ]
+}

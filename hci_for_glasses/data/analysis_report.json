@@ -1,0 +1,98 @@
+{
+  "rubric": "xr_hci_rubric (1).json",
+  "sessions": [
+    {
+      "file": "session_01.json",
+      "session_id": "sess_01_7211",
+      "app": "MindfulSpace VR",
+      "scene": "lounge",
+      "findings": [
+        {
+          "rule_id": "touch_target_size",
+          "rule_text": "Touch targets should be 56dp (optimal), and no smaller than 48dp minimum.",
+          "target": "settings_toggle",
+          "evidence_from_telemetry": "3 grab attempts on 'settings_toggle', 2 failed (fail rate 67%); failed distance_to_target 0.39-0.44m (mean 0.41m); eventual success at 0.06m; 2.9s of hand-pose-only hesitation before the first attempt; distance_to_target stdev 0.20m across attempts.",
+          "suggested_fix": "Enlarge the interactive/grab collider of 'settings_toggle' to >=56dp (>=48dp min) and confirm the collider matches the visual bounds so users aren't reaching 0.44m off-target; add a hover/focus highlight and press confirmation so the target is acquirable on the first try (compare against clean targets that succeed <0.10m).",
+          "severity": "high",
+          "related_rule_ids": [
+            "icon_button_contrast",
+            "hover_state_availability",
+            "icon_button_visual_clarity"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "session_02.json",
+      "session_id": "sess_02_8994",
+      "app": "GalleryWalk",
+      "scene": "settings_hub",
+      "findings": [
+        {
+          "rule_id": "touch_target_size",
+          "rule_text": "Touch targets should be 56dp (optimal), and no smaller than 48dp minimum.",
+          "target": "settings_toggle",
+          "evidence_from_telemetry": "4 grab attempts on 'settings_toggle', 3 failed (fail rate 75%); failed distance_to_target 0.32-0.47m (mean 0.40m); eventual success at 0.07m; 3.3s of hand-pose-only hesitation before the first attempt; distance_to_target stdev 0.18m across attempts.",
+          "suggested_fix": "Enlarge the interactive/grab collider of 'settings_toggle' to >=56dp (>=48dp min) and confirm the collider matches the visual bounds so users aren't reaching 0.47m off-target; add a hover/focus highlight and press confirmation so the target is acquirable on the first try (compare against clean targets that succeed <0.10m).",
+          "severity": "high",
+          "related_rule_ids": [
+            "icon_button_contrast",
+            "hover_state_availability",
+            "icon_button_visual_clarity"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "session_03.json",
+      "session_id": "sess_03_3317",
+      "app": "MindfulSpace VR",
+      "scene": "workshop",
+      "findings": [
+        {
+          "rule_id": "touch_target_size",
+          "rule_text": "Touch targets should be 56dp (optimal), and no smaller than 48dp minimum.",
+          "target": "settings_toggle",
+          "evidence_from_telemetry": "4 grab attempts on 'settings_toggle', 3 failed (fail rate 75%); failed distance_to_target 0.31-0.47m (mean 0.38m); eventual success at 0.03m; 2.7s of hand-pose-only hesitation before the first attempt; distance_to_target stdev 0.19m across attempts.",
+          "suggested_fix": "Enlarge the interactive/grab collider of 'settings_toggle' to >=56dp (>=48dp min) and confirm the collider matches the visual bounds so users aren't reaching 0.47m off-target; add a hover/focus highlight and press confirmation so the target is acquirable on the first try (compare against clean targets that succeed <0.10m).",
+          "severity": "high",
+          "related_rule_ids": [
+            "icon_button_contrast",
+            "hover_state_availability",
+            "icon_button_visual_clarity"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "session_04.json",
+      "session_id": "sess_04_9507",
+      "app": "GalleryWalk",
+      "scene": "settings_hub",
+      "findings": []
+    },
+    {
+      "file": "session_05.json",
+      "session_id": "sess_05_2761",
+      "app": "MindfulSpace VR",
+      "scene": "settings_hub",
+      "findings": []
+    },
+    {
+      "file": "session_06.json",
+      "session_id": "sess_06_7184",
+      "app": "AssemblyTrainer",
+      "scene": "lounge",
+      "findings": [
+        {
+          "rule_id": "content_type_in_elevated_context",
+          "rule_text": "Elevated/orbiter-style elements should hold controls, not primary scrollable content.",
+          "target": "notes_panel",
+          "evidence_from_telemetry": "ui_interaction on 'notes_panel' at t=2.99s raised issue_flag='content_scroll_in_elevated_panel'.",
+          "suggested_fix": "Move scrollable primary content out of the elevated/orbiter 'notes_panel' into a standard anchored panel; keep only controls in elevated elements per platform convention.",
+          "severity": "medium"
+        }
+      ]
+    }
+  ]
+}
