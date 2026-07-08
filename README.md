@@ -18,7 +18,24 @@ In the sample you can see an implementation of:
 - Material and texture overrides
 - Animation of the 3D object
 - Changing position of the 3D object
+- XR telemetry capture for clicks, model transforms, panel moves/resizes, and hand snapshots
 - and more
+
+# Telemetry
+
+This repo now includes a reusable Android library module at `xr-telemetry/`.
+
+- Build a distributable package with `.\gradlew.bat :xr-telemetry:bundleTelemetryPackage`
+- Import the module into another Android Studio project as source or by using the generated AAR
+- Exported session JSON can be analyzed with `hci_for_glasses/analyze_sessions.py`
+- `analyze_sessions.py` now supports an AI-assisted pass that reads messy telemetry like a UX researcher when `OPENAI_API_KEY` is configured
+- Specialization lenses now ship in `hci_for_glasses/lenses/` and can be toggled before a run or live during a session
+- The watcher/dashboard flow now produces a latest-session JSON alias plus an all-sessions HTML review dashboard
+
+See [xr-telemetry/README.md](xr-telemetry/README.md) for the packaging and analysis workflow.
+That document also includes the `watch_emulator_session.py` flow for automatic
+session pull + analysis after an emulator session ends, along with the rubric
+rule-disable workflow for findings marked not important.
 
 # 💻 Development Environment
 

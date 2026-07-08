@@ -1,0 +1,51 @@
+{
+  "rubric_name": "Android XR Medical/Clinical Specialization",
+  "extends": "xr_hci_rubric.json",
+  "persona": "medical",
+  "purpose": "Rules calibrated for medical/clinical users, who require extremely low error tolerance, deliberate confirmation for irreversible actions, and often touchless or minimal-contact interaction patterns.",
+  "source": "Derived from established clinical human-factors conventions (deliberate confirmation, sterility/touchless considerations) combined with Android XR interaction guidelines.",
+  "rules": [
+    {
+      "id": "deliberate_confirmation_for_irreversible_actions",
+      "rule": "Any action with an irreversible or high-consequence outcome must require a deliberate, distinct confirmation step (not a single quick gesture or tap) to avoid accidental activation.",
+      "why_it_matters": "In a clinical context, an accidental activation is not a minor annoyance; it can affect patient safety or data integrity. This persona needs a meaningfully higher activation-friction bar than casual apps.",
+      "telemetry_signal": "grab_attempt or controller_input events on a known consequential control with only a single quick input and no secondary confirmation event before a state-change is logged.",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "touchless_and_low_contact_interaction_support",
+      "rule": "Where feasible, support touchless or minimal-contact interaction patterns (voice, gaze-assisted selection where available, or air gestures that do not require touching a physical surface).",
+      "why_it_matters": "Sterility requirements and hands-occupied clinical tasks (for example gloved use or holding instruments) make touch-first interaction models impractical or unsafe in this context.",
+      "telemetry_signal": "Sessions relying heavily on grab_attempt/controller_input where hand_pose data suggests limited hand availability (for example one hand consistently unavailable or in a fixed holding position), a strong signal that the current interaction model assumes more hand freedom than the user has.",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "predictability_over_polish",
+      "rule": "Prioritize highly predictable, consistent interaction patterns over novel or delightful UI flourishes; avoid ambiguous iconography or playful microinteractions for clinical-context controls.",
+      "why_it_matters": "Clinical users need to trust that a control behaves exactly the same way every time under pressure; novelty or ambiguity that might charm a casual user reads as risk in this context.",
+      "telemetry_signal": "Elevated hesitation or repeated verification-style re-checks (for example re-pressing a toggle to confirm state) on controls using non-standard iconography, compared to controls using conventional Material Design patterns.",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "clear_error_and_state_visibility",
+      "rule": "System state (especially error states or incomplete actions) must be immediately and unambiguously visible, not inferred from subtle visual cues.",
+      "why_it_matters": "In time-sensitive or high-stakes clinical use, a missed or ambiguous error state can have significant downstream consequences; this persona cannot afford to guess at system state.",
+      "telemetry_signal": "Sessions showing continued interaction attempts on a control after an error/failure state was logged, suggesting the error was not visible or clear enough for the user to notice and adjust.",
+      "severity_if_violated": "high"
+    }
+  ],
+  "schema_additions_for_persona_detection": {
+    "note": "Add user_persona: medical to session metadata for labeled test data. For real sessions, infer via signals such as one hand consistently unavailable or occupied, unusually long pauses before consequential actions, or heavy reliance on voice/gaze events if present in telemetry.",
+    "applies_to_rules": [
+      "deliberate_confirmation_for_irreversible_actions",
+      "touchless_and_low_contact_interaction_support"
+    ]
+  },
+  "output_format_for_agent": {
+    "rule_id": "one of the ids above",
+    "rule_text": "short human-readable restatement",
+    "evidence_from_telemetry": "specific numbers/events from the session that support the finding",
+    "suggested_fix": "concrete, actionable redesign suggestion",
+    "severity": "low | medium | high"
+  }
+}

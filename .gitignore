@@ -43,3 +43,7 @@ captures/
 
 # Kotlin
 .kotlin
+
+# Local XR telemetry pulls/reports
+hci_for_glasses/device_sessions/
+hci_for_glasses/__pycache__/

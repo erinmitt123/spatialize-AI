@@ -1,0 +1,52 @@
+{
+  "rubric_name": "Android XR Animator/3D-Professional Specialization",
+  "extends": "xr_hci_rubric.json",
+  "persona": "animator",
+  "purpose": "Rules calibrated for users with a 3D animation/rigging background (Maya, Blender, Unity animation tools), who bring different expectations of precision, control, and manipulation than a general consumer user.",
+  "source": "Derived from common 3D animation software conventions (direct manipulation, gizmo-based transforms, undo-heavy workflows) combined with Android XR interaction guidelines.",
+  "rules": [
+    {
+      "id": "precision_manipulation_expectation",
+      "rule": "Animators expect fine-grained, snappable control over object position and rotation (akin to gizmos in Maya or Blender), not just a loose grab-and-release.",
+      "why_it_matters": "A hesitation or imprecise placement signal that would read as confusion for a general user may instead mean an animator is trying and failing to achieve exact positioning the interaction model does not support.",
+      "telemetry_signal": "Repeated small corrective grab_attempt or hand_pose adjustments on the same object after an initial successful grab (micro-adjusting), rather than a single clean placement. Reinterpret as a precision-control gap, not an affordance failure.",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "undo_redo_expectation",
+      "rule": "Provide an accessible, discoverable undo or redo mechanism for object manipulation, matching the ubiquitous undo conventions of 3D animation tools.",
+      "why_it_matters": "Animators will assume undo exists and try it reflexively; its absence or poor discoverability will read as a missing core feature rather than a minor gap.",
+      "telemetry_signal": "grab_attempt or controller_input sequences showing an object moved, then a distinct gesture or button attempted immediately after with no corresponding undo-type event logged, followed by manual repositioning back toward the original location.",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "rig_and_hand_pose_fidelity",
+      "rule": "If the app renders a tracked hand or avatar rig, joint articulation should look anatomically plausible and update with minimal visible lag or jitter.",
+      "why_it_matters": "Animators are specifically trained to notice rigging and joint-motion artifacts that a general user would never consciously register; a jittery or anatomically implausible hand model will damage credibility with this persona specifically.",
+      "telemetry_signal": "hand_pose data showing large frame-to-frame joint position deltas inconsistent with plausible human motion (sudden jumps rather than smooth interpolation).",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "axis_and_frame_of_reference_clarity",
+      "rule": "When manipulating or placing objects, provide a visible reference for orientation or axis (even a subtle one), rather than leaving placement purely freeform.",
+      "why_it_matters": "3D professionals rely on a frame of reference to judge whether a placement is correct; freeform placement without any axis cue makes it hard for them to trust their own precision.",
+      "telemetry_signal": "Repeated rotation or re-placement attempts on the same object after an initial placement, suggesting the user is trying to correct against a reference they cannot see.",
+      "severity_if_violated": "low"
+    }
+  ],
+  "schema_additions_for_persona_detection": {
+    "note": "Add a user_persona field to session metadata (for example animator, manufacturing, medical, general) for supervised testing. For real sessions, infer persona signals such as high frequency of small corrective adjustments after placement, reliance on precise alignment near markers, or deliberate gesture use with long pauses before irreversible actions.",
+    "applies_to_rules": [
+      "precision_manipulation_expectation",
+      "undo_redo_expectation",
+      "axis_and_frame_of_reference_clarity"
+    ]
+  },
+  "output_format_for_agent": {
+    "rule_id": "one of the ids above",
+    "rule_text": "short human-readable restatement",
+    "evidence_from_telemetry": "specific numbers/events from the session that support the finding",
+    "suggested_fix": "concrete, actionable redesign suggestion",
+    "severity": "low | medium | high"
+  }
+}

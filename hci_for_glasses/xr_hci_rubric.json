@@ -1,0 +1,169 @@
+{
+  "rubric_name": "Android XR Spatial HCI Review Rubric",
+  "source": "Google Android XR / Material Design for XR developer guidelines",
+  "rules": [
+    {
+      "id": "touch_target_size",
+      "rule": "Touch targets should be 56dp (optimal), and no smaller than 48dp minimum.",
+      "why_it_matters": "Larger targets increase precision, comfort, and usability in spatial pointing/grabbing interactions.",
+      "telemetry_signal": "High grab_attempt failure rate or repeated failed attempts before success on a specific target; distance_to_target consistently large relative to object size.",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "text_legibility",
+      "rule": "Font size should be 14dp or larger, with normal weight or higher.",
+      "why_it_matters": "Text below this threshold is hard to read at typical XR viewing distances, especially on panels farther from the user.",
+      "telemetry_signal": "ui_interaction events on text-heavy components with long dwell/hesitation times, or repeated re-approach toward the panel.",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "panel_corner_radius",
+      "rule": "Panels should use the system-recommended 32dp rounded corners.",
+      "why_it_matters": "Visual consistency with platform conventions; minor polish signal, not a functional blocker.",
+      "telemetry_signal": "Static UI property check only, no telemetry signal expected.",
+      "severity_if_violated": "low"
+    },
+    {
+      "id": "panel_placement_distance",
+      "rule": "Panels should launch at ~1.75m from the user; panel size should scale to remain legible between 0.75m and 1.75m.",
+      "why_it_matters": "Panels outside this range become uncomfortable to read or interact with.",
+      "telemetry_signal": "Repeated user repositioning/backing away/leaning toward a panel; hand_pose data showing the user physically closing distance before interacting.",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "orbiter_discipline",
+      "rule": "Orbiters (floating control elements) should be used sparingly; too many spatialized elements causes content fatigue and competing-action overwhelm.",
+      "why_it_matters": "Excess orbiters increase cognitive load and make it harder to find the right control.",
+      "telemetry_signal": "High count of distinct orbiter/control components in a scene; fumbling between multiple floating controls (rapid failed grabs across different targets in short time window).",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "panel_overlap_and_visibility",
+      "rule": "Avoid overlapping panels that block critical information; avoid placing panels in uncomfortable or unnoticeable positions (e.g. behind the user).",
+      "why_it_matters": "Users may miss critical UI entirely if it's poorly placed or obscured.",
+      "telemetry_signal": "ui_interaction events with no corresponding grab/gaze engagement for a known-important component; long time-to-first-interaction.",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "content_type_in_elevated_context",
+      "rule": "Elevated/orbiter-style elements should hold controls, not primary scrollable content.",
+      "why_it_matters": "Scrollable primary content inside an elevated/orbiter panel breaks expected interaction patterns and platform conventions.",
+      "telemetry_signal": "ui_interaction event with issue_flag == 'content_scroll_in_elevated_panel'.",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "icon_button_visual_clarity",
+      "rule": "Custom buttons/icons should use simple forms, clean lines, basic shapes, and a limited color palette; avoid overly detailed designs. Icons must be scalable and legible across resolutions and viewing distances.",
+      "why_it_matters": "Overly detailed or busy icon textures become illegible at typical XR viewing distances, causing users to misjudge what a control does or where it is.",
+      "telemetry_signal": "Repeated failed grab attempts or long hesitation on a specific icon/button target, especially combined with low success rate after multiple attempts.",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "icon_button_contrast",
+      "rule": "Ensure sufficient contrast between a button/icon and its background, and provide text descriptions or tooltips for assistive technology.",
+      "why_it_matters": "Low contrast makes a control hard to locate or identify, especially against passthrough or variable real-world backgrounds.",
+      "telemetry_signal": "Long time-to-first-interaction on a specific component, or hesitation events immediately preceding a grab_attempt.",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "single_icon_per_button",
+      "rule": "Avoid using two icons in the same button; a button's purpose should be communicated by one clear visual element.",
+      "why_it_matters": "Multiple icons in one control create ambiguity about what action will occur on press.",
+      "telemetry_signal": "Repeated grab/press attempts followed quickly by an undo-like or reversal action, suggesting the user misunderstood the control.",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "toggle_state_clarity",
+      "rule": "A toggle button's active/inactive state must be visually unambiguous; hover and focus states should express which options are currently selectable.",
+      "why_it_matters": "If users can't tell whether a toggle is on or off, they'll re-press it unnecessarily or miss that an action already occurred.",
+      "telemetry_signal": "Rapid repeated press/grab events on the same toggle target within a short time window (re-checking or re-toggling behavior).",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "press_feedback_confirmation",
+      "rule": "Provide clear visual or audio feedback to confirm user actions for any interaction model used (e.g. press, grab, gesture).",
+      "why_it_matters": "Without confirmation feedback, users cannot tell whether their input registered, leading to repeated or abandoned attempts.",
+      "telemetry_signal": "Multiple grab_attempt or controller_input events on the same target in quick succession with no intervening successful state change; long pause after a press suggesting the user is waiting/checking for a response.",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "hover_state_availability",
+      "rule": "Interactive components should implement hover and focus states in addition to basic pressed/selected states, since hover is especially important for pointer-based input.",
+      "why_it_matters": "Missing hover/focus states remove a key pre-interaction signal that helps users confirm they're about to activate the right control before committing.",
+      "telemetry_signal": "grab_attempt events with high distance_to_target variance right before contact, suggesting the user isn't getting pre-contact confirmation of the correct target.",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "controller_button_mapping",
+      "rule": "For 6DoF controller input, ensure intuitive button mappings and consider allowing users to remap buttons to suit preferences.",
+      "why_it_matters": "Unintuitive mappings force users to learn arbitrary associations rather than relying on expectation, slowing interaction and increasing errors.",
+      "telemetry_signal": "controller_input events showing wrong-button presses immediately followed by the correct button for the same apparent intent.",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "gesture_comfort_and_fatigue",
+      "rule": "Custom gestures should be easy to learn, remember, and perform comfortably; avoid large hand movements or frequent arm lifting, which cause fatigue. Prefer gestures that mimic familiar real-world actions.",
+      "why_it_matters": "Physically demanding or unfamiliar gestures degrade usability over a session and increase error rates as users tire.",
+      "telemetry_signal": "hand_pose data showing large joint displacement or elevated arm position sustained over time; increasing hesitation or failure rate for the same gesture later in a session compared to earlier (fatigue pattern).",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "gesture_system_conflict",
+      "rule": "Be aware that custom gestures similar to system gestures can lead to conflicts or accidental activation of system functions.",
+      "why_it_matters": "Accidental system activation interrupts the user's task and erodes trust in the app's controls.",
+      "telemetry_signal": "ui_interaction or grab_attempt events immediately followed by an unrelated system-level event flag, if present in telemetry.",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "space_transition_cues",
+      "rule": "Provide clear visual cues (e.g. collapse/expand icons) to let users switch between Full Space and Home Space.",
+      "why_it_matters": "Users who can't find or understand the transition control get stuck in the wrong mode for their current task.",
+      "telemetry_signal": "Long dwell time or repeated failed attempts on a mode-transition control, or reliance on system-level fallback events.",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "target_discoverability",
+      "rule": "A control's location and purpose should be discoverable without extended searching; users shouldn't need to hunt across the scene to find the right button.",
+      "why_it_matters": "If a user can't locate a control quickly, the control is effectively broken for them regardless of how well-designed it looks up close.",
+      "telemetry_signal": "Long elapsed time between scene/panel load and the first grab_attempt or controller_input directed at the correct target; multiple grab_attempt events on the wrong object(s) before the correct one; hand_pose data showing wide, sweeping movement across the scene (searching behavior) before settling on a target.",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "control_affordance_visibility",
+      "rule": "Interactive controls must visually read as interactive (e.g. elevation, shadow, distinct styling) so users recognize them as buttons rather than static decoration or background elements.",
+      "why_it_matters": "A control that doesn't look interactable may never be attempted at all, which is a worse failure than a control that's merely hard to press correctly.",
+      "telemetry_signal": "ui_interaction events showing zero or near-zero grab/press attempts on a known-important control across most sessions, despite the user being in its vicinity (e.g. hand_pose or gaze proximity data near the target with no corresponding interaction attempt).",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "interaction_latency_frustration",
+      "rule": "System response to a press, grab, or gesture should be near-immediate; noticeable lag between input and visible response causes users to reissue the same input, assuming it didn't register.",
+      "why_it_matters": "Perceived unresponsiveness erodes trust in the interface and produces duplicate or conflicting inputs, which can trigger unintended actions.",
+      "telemetry_signal": "Multiple grab_attempt or controller_input events on the identical target with very short gaps between them (e.g. under ~0.5s), especially when clustered right after an initial press with no intervening success/failure state change logged.",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "dead_control_no_response",
+      "rule": "Every interactive control must produce some detectable state change when activated; a control that never responds, no matter how many times or how correctly it's pressed, is a functional failure, not just a usability one.",
+      "why_it_matters": "This is the most severe interaction failure category: unlike lag (something eventually happens) or poor feedback (something happens but isn't communicated well), a dead control means the user's action has no effect at all, so no amount of retrying will help them. It quickly erodes trust in the entire app and often leads users to abandon the task or exit entirely.",
+      "telemetry_signal": "Repeated grab_attempt or controller_input events (3+) on the same target across an extended time window with no corresponding successful state-change/ui_interaction event ever logged for that target in the session; sessions where the user eventually stops attempting the target (goes quiet) or a session_end/panel_close/app_exit event follows shortly after a cluster of failed attempts.",
+      "severity_if_violated": "high"
+    }
+  ],
+  "schema_additions_for_search_and_findability": {
+    "note": "To detect target_discoverability, control_affordance_visibility, and dead_control_no_response, extend telemetry generation to track: (1) the intended/correct target for a task alongside any grab_attempt events on other objects made first, so 'wrong-object attempts before correct one' is explicit rather than inferred; (2) a rough 'time_since_scene_load' or 'time_since_prompt' timestamp per event, so search duration before the first relevant attempt can be measured directly; (3) optionally, a lightweight 'near_miss' or 'proximity_no_action' event when hand/gaze proximity to a control does not result in any grab_attempt, to capture controls that are seen but never attempted; (4) a 'session_end' or 'panel_close' event type with a reason field (e.g. 'user_exit', 'timeout'), so abandonment shortly after repeated failed attempts can be detected as a strong dead-control signal.",
+    "applies_to_rules": ["target_discoverability", "control_affordance_visibility", "interaction_latency_frustration", "dead_control_no_response"]
+  },
+  "framing_note_not_a_rule": {
+    "topic": "eye_tracking_hover_limitation",
+    "note": "Hover states help enable eye tracking, but when eye tracking is active, hover states become inaccessible to the app for privacy reasons. This is why this tool analyzes hand tracking and controller telemetry rather than gaze data today.",
+    "usage": "Mention proactively in the pitch to show platform awareness, not as a defect category."
+  },
+  "output_format_for_agent": {
+    "rule_id": "one of the ids above",
+    "rule_text": "short human-readable restatement",
+    "evidence_from_telemetry": "specific numbers/events from the session that support the finding",
+    "suggested_fix": "concrete, actionable redesign suggestion",
+    "severity": "low | medium | high"
+  }
+}

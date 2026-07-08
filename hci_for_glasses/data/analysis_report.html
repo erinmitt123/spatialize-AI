@@ -1,0 +1,1109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>XR Session Review Dashboard</title>
+  <style>
+    :root {
+      color-scheme: dark;
+
+      /* Palette — Black Neomorphism */
+      --deep-black: #0B0B0E;
+      --charcoal: #14161A;
+      --slate: #1F2126;
+      --electric-cyan: #00F0FF;
+      --mint-glow: #7CFFC7;
+      --lavender: #C4B5FF;
+      --soft-pink: #FF9ED1;
+      --peach-glow: #FFC39E;
+      --lilac: #E0B3FF;
+      --blue-violet: #7B61FF;
+
+      /* Roles */
+      --bg: var(--charcoal);
+      --surface: #1a1c21;
+      --surface-raised: #1f2229;
+      --ink: #eef0f5;
+      --muted: #8a8f9c;
+      --accent: var(--electric-cyan);
+
+      --high: #FF9ED1;    /* soft pink */
+      --medium: #FFC39E;  /* peach glow */
+      --low: #7CFFC7;     /* mint glow */
+
+      /* Neomorphic shadow pair (raised) */
+      --nm-dark: rgba(0, 0, 0, 0.66);
+      --nm-light: rgba(255, 255, 255, 0.035);
+      --nm-raised: 7px 7px 16px var(--nm-dark), -7px -7px 16px var(--nm-light);
+      --nm-raised-sm: 5px 5px 11px var(--nm-dark), -5px -5px 11px var(--nm-light);
+      --nm-inset: inset 5px 5px 11px var(--nm-dark), inset -5px -5px 11px var(--nm-light);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background:
+        radial-gradient(circle at 85% -5%, rgba(0, 240, 255, 0.08), transparent 34rem),
+        radial-gradient(circle at 5% 20%, rgba(123, 97, 255, 0.08), transparent 34rem),
+        var(--bg);
+      color: var(--ink);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 20px 56px;
+    }
+
+    .hero {
+      background: var(--surface);
+      color: var(--ink);
+      border-radius: 28px;
+      padding: 30px;
+      box-shadow: var(--nm-raised);
+    }
+
+    .hero h1 {
+      margin: 0 0 8px;
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      background: linear-gradient(100deg, var(--electric-cyan), var(--lavender) 45%, var(--soft-pink));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      margin: 6px 0 0;
+      max-width: 72ch;
+      color: var(--muted);
+    }
+
+    .hero p strong {
+      color: var(--lilac);
+      font-weight: 700;
+    }
+
+    .summary-grid,
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+    }
+
+    .summary-grid {
+      margin-top: 24px;
+    }
+
+    .summary-card,
+    .surface,
+    .finding-card,
+    .session-card,
+    .mini-card,
+    .modal-card {
+      background: var(--surface);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 20px;
+      box-shadow: var(--nm-raised);
+    }
+
+    .summary-card {
+      padding: 18px;
+    }
+
+    .summary-label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .summary-value {
+      font-size: 28px;
+      font-weight: 800;
+      margin-top: 6px;
+      color: var(--electric-cyan);
+    }
+
+    .tab-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 28px 0 20px;
+    }
+
+    .tab-button {
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      background: var(--surface);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 11px 18px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: var(--nm-raised-sm);
+      transition: color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .tab-button:hover {
+      color: var(--ink);
+    }
+
+    .tab-button.active {
+      color: var(--electric-cyan);
+      box-shadow: var(--nm-inset);
+      text-shadow: 0 0 12px rgba(0, 240, 255, 0.5);
+    }
+
+    .panel {
+      display: none;
+      gap: 18px;
+    }
+
+    .panel.active {
+      display: grid;
+    }
+
+    .surface {
+      padding: 22px;
+    }
+
+    .surface h2,
+    .surface h3,
+    .finding-card h3,
+    .session-card h3 {
+      margin: 0;
+      color: var(--ink);
+    }
+
+    .section-stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .finding-card,
+    .session-card {
+      padding: 20px;
+    }
+
+    .finding-card {
+      border-left: 6px solid var(--blue-violet);
+    }
+
+    .severity-high {
+      border-left-color: var(--high);
+      box-shadow: var(--nm-raised), -1px 0 18px rgba(255, 158, 209, 0.22);
+    }
+
+    .severity-medium {
+      border-left-color: var(--medium);
+      box-shadow: var(--nm-raised), -1px 0 18px rgba(255, 195, 158, 0.2);
+    }
+
+    .severity-low {
+      border-left-color: var(--low);
+      box-shadow: var(--nm-raised), -1px 0 18px rgba(124, 255, 199, 0.18);
+    }
+
+    .finding-header,
+    .session-header,
+    .card-actions,
+    .modal-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .eyebrow,
+    .meta,
+    .occurrence-meta {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .finding-card p strong,
+    .session-card p strong,
+    .mini-card strong,
+    .modal-card p strong {
+      color: var(--lavender);
+      font-weight: 700;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      background: var(--surface);
+      color: var(--lilac);
+      text-transform: uppercase;
+      box-shadow: var(--nm-raised-sm);
+    }
+
+    .severity-high .pill {
+      color: var(--soft-pink);
+    }
+
+    .severity-medium .pill {
+      color: var(--peach-glow);
+    }
+
+    .severity-low .pill {
+      color: var(--mint-glow);
+    }
+
+    .rule-text {
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    .button,
+    .button-subtle,
+    .button-danger {
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      background: var(--surface);
+      box-shadow: var(--nm-raised-sm);
+      transition: box-shadow 0.15s ease, color 0.15s ease;
+    }
+
+    .button:active,
+    .button-subtle:active,
+    .button-danger:active {
+      box-shadow: var(--nm-inset);
+    }
+
+    .button {
+      color: var(--electric-cyan);
+    }
+
+    .button:hover {
+      text-shadow: 0 0 12px rgba(0, 240, 255, 0.5);
+    }
+
+    .button-subtle {
+      color: var(--lavender);
+    }
+
+    .button-danger {
+      color: var(--soft-pink);
+    }
+
+    .occurrence-list,
+    .session-history,
+    .info-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .occurrence-item,
+    .mini-card {
+      padding: 14px 16px;
+      background: var(--surface);
+      border-radius: 16px;
+      box-shadow: var(--nm-inset);
+      border: none;
+    }
+
+    .ok,
+    .empty-state {
+      background: var(--surface);
+      color: var(--mint-glow);
+      padding: 16px 18px;
+      border-radius: 18px;
+      box-shadow: var(--nm-inset);
+      border: 1px solid rgba(124, 255, 199, 0.12);
+    }
+
+    .empty-state {
+      color: var(--muted);
+      border-color: rgba(255, 255, 255, 0.04);
+    }
+
+    .two-column {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 18px;
+    }
+
+    .code-block {
+      background: var(--deep-black);
+      color: var(--mint-glow);
+      border-radius: 16px;
+      padding: 16px;
+      overflow-x: auto;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      box-shadow: var(--nm-inset);
+    }
+
+    .modal-shell {
+      position: fixed;
+      inset: 0;
+      background: rgba(11, 11, 14, 0.72);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 1000;
+    }
+
+    .modal-shell.open {
+      display: flex;
+    }
+
+    .modal-card {
+      width: min(760px, 100%);
+      padding: 24px;
+    }
+
+    .status-note {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 8px;
+    }
+
+    .refresh-note {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 860px) {
+      .page {
+        padding: 20px 14px 36px;
+      }
+
+      .hero h1 {
+        font-size: 28px;
+      }
+
+      .two-column {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <h1>XR Session Review Dashboard</h1>
+      <p id="hero-copy"></p>
+      <div class="summary-grid" id="hero-stats"></div>
+      <div class="refresh-note" id="refresh-note"></div>
+    </section>
+
+    <nav class="tab-bar" aria-label="Review views">
+      <button class="tab-button active" data-tab="latest">Latest Session</button>
+      <button class="tab-button" data-tab="all">All Sessions</button>
+      <button class="tab-button" data-tab="review">Completed</button>
+    </nav>
+
+    <section class="panel active" id="panel-latest"></section>
+    <section class="panel" id="panel-all"></section>
+    <section class="panel" id="panel-review"></section>
+  </main>
+
+  <div class="modal-shell" id="ignore-modal" aria-hidden="true">
+    <div class="modal-card">
+      <div class="finding-header">
+        <div>
+          <div class="eyebrow">Not Important</div>
+          <h3 id="ignore-title"></h3>
+        </div>
+        <button class="button-subtle" id="ignore-close" type="button">Close</button>
+      </div>
+      <p class="status-note" id="ignore-copy"></p>
+      <div class="code-block" id="ignore-command"></div>
+      <div class="modal-actions" style="margin-top: 16px;">
+        <button class="button-danger" id="ignore-local" type="button">Hide In Dashboard</button>
+        <button class="button" id="ignore-copy-command" type="button">Copy Disable Command</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const report = {"rubric": "xr_hci_rubric.json", "rubric_path": "hci_for_glasses\\xr_hci_rubric.json", "rubric_source": "Google Android XR / Material Design for XR developer guidelines", "disabled_rule_ids": [], "source": "hci_for_glasses\\device_sessions\\watched\\session_1783542315012_1209ca4f.json", "generated_at": "2026-07-08 15:36:13", "python_executable": "C:\\Users\\Erin Mitt\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe", "rules_manager_path": "hci_for_glasses\\manage_rubric_rules.py", "available_lenses": [{"id": "animator", "name": "Android XR Animator/3D-Professional Specialization", "path": "hci_for_glasses\\lenses\\animator.json", "persona": "animator", "purpose": "Rules calibrated for users with a 3D animation/rigging background (Maya, Blender, Unity animation tools), who bring different expectations of precision, control, and manipulation than a general consumer user.", "rule_count": 4}, {"id": "low_vision_accessibility", "name": "Android XR Low-Vision & High-Contrast Accessibility Specialization", "path": "hci_for_glasses\\lenses\\low_vision_accessibility.json", "persona": null, "purpose": "Additional rules focused specifically on users with low vision, color vision deficiency, or light sensitivity, who need larger, higher-contrast, and less detail-dependent UI to use an Android XR app comfortably.", "rule_count": 9}, {"id": "manufacturing", "name": "Android XR Manufacturing/Industrial AR Specialization", "path": "hci_for_glasses\\lenses\\manufacturing.json", "persona": "manufacturing", "purpose": "Rules calibrated for industrial/manufacturing AR users, who typically work hands-busy or gloved, need high physical-alignment precision, and face real-world consequences for interaction errors.", "rule_count": 4}, {"id": "medical", "name": "Android XR Medical/Clinical Specialization", "path": "hci_for_glasses\\lenses\\medical.json", "persona": "medical", "purpose": "Rules calibrated for medical/clinical users, who require extremely low error tolerance, deliberate confirmation for irreversible actions, and often touchless or minimal-contact interaction patterns.", "rule_count": 4}], "analysis_engine": {"mode_requested": "hybrid", "mode_used": "heuristic", "ai_status": "not_configured", "ai_provider": "openai", "ai_model": "gpt-4.1-mini", "reason": "Set OPENAI_API_KEY to enable AI analysis.", "active_lenses": ["low_vision_accessibility", "medical"]}, "sessions": [{"file": "session_1783542315012_1209ca4f.json", "session_id": "1209ca4f-0be5-4f54-b3d7-cd6c36eea80b", "app": "Hello Android XR", "scene": "non_spatial_ui", "started_at_epoch_ms": 1783542315012, "ended_at_epoch_ms": 1783542357929, "telemetry_summary": {"event_count": 1, "click_count": 1, "rotation_change_count": 0, "transform_change_count": 0, "spatial_transform_count": 0, "spatial_resize_count": 0, "hand_pose_count": 0, "ui_interaction_count": 1, "grab_attempt_count": 0, "targets": [], "components": ["request_full_space_button"], "contains_runtime_telemetry": false}, "researcher_summary": "This session mostly captured discrete UI actions and did not show enough friction to support a rubric finding.", "analysis_engine": {"mode_requested": "hybrid", "mode_used": "heuristic", "ai_status": "not_configured", "ai_provider": "openai", "ai_model": "gpt-4.1-mini", "active_lenses": ["medical", "low_vision_accessibility"], "retrieval_lenses": ["medical", "low_vision_accessibility"], "retrieved_focus_rule_count": 6, "reason": "Set OPENAI_API_KEY to enable AI analysis."}, "lens_context": {"forced_lenses": ["medical", "low_vision_accessibility"], "session_default_lenses": [], "inferred_lenses": [], "current_active_lenses": ["medical", "low_vision_accessibility"], "retrieval_lenses": ["medical", "low_vision_accessibility"], "lenses_seen_during_session": [], "live_toggle_history": [], "current_active_lens_names": ["Android XR Medical/Clinical Specialization", "Android XR Low-Vision & High-Contrast Accessibility Specialization"], "retrieval_lens_names": ["Android XR Medical/Clinical Specialization", "Android XR Low-Vision & High-Contrast Accessibility Specialization"], "retrieved_focus_rules": [{"lens_id": "low_vision_accessibility", "lens_name": "Android XR Low-Vision & High-Contrast Accessibility Specialization", "rule_id": "text_and_display_scaling_support", "rule_text": "App layouts should respect and scale correctly with system-level text size and display size settings rather than using fixed, unscalable text and UI elements.", "why_it_matters": "Android XR accessibility settings let users increase text size and display size; an app that ignores these settings leaves low-vision users without their expected accommodation.", "telemetry_signal": "ui_interaction events showing text or layout elements that overlap, clip, or become unreadable when the session metadata indicates a non-default text_scale or display_scale setting.", "detection_method": "telemetry_inferable_with_session_metadata", "retrieval_score": 20, "matched_terms": ["accessibility", "android", "interaction", "low", "non", "ui", "ui_interaction", "vision"], "focus_reason": "Matched session signals: accessibility, android, interaction, low, non, ui."}, {"lens_id": "low_vision_accessibility", "lens_name": "Android XR Low-Vision & High-Contrast Accessibility Specialization", "rule_id": "high_contrast_mode_compatibility", "rule_text": "The app's UI should remain fully legible and functional when the system's High Contrast Fonts or Relumino outline accessibility features are enabled.", "why_it_matters": "These are real user-facing Android XR accessibility settings; if custom app styling overrides or conflicts with them, low-vision users lose the accommodation they turned on.", "telemetry_signal": "Increased hesitation, failed grab_attempts, or long time-to-first-interaction specifically in sessions where session metadata indicates high_contrast_mode or relumino_outline is enabled, compared to sessions without.", "detection_method": "telemetry_inferable_with_session_metadata", "retrieval_score": 14, "matched_terms": ["accessibility", "android", "interaction", "low", "ui", "vision", "xr"], "focus_reason": "Matched session signals: accessibility, android, interaction, low, ui, vision."}, {"lens_id": "low_vision_accessibility", "lens_name": "Android XR Low-Vision & High-Contrast Accessibility Specialization", "rule_id": "non_visual_fallback_for_key_actions", "rule_text": "Critical actions and feedback should have a non-visual fallback (audio cue, TTS description, or TalkBack-compatible label) rather than depending on vision alone.", "why_it_matters": "For users with significant vision loss, a purely visual confirmation (for example a subtle color change) is not perceivable at all; an audio or spoken alternative ensures the action is still confirmed.", "telemetry_signal": "Cross-reference press_feedback_confirmation and dead_control_no_response findings from the base rubric against sessions with screen_reader_enabled or low_vision_mode metadata.", "detection_method": "telemetry_inferable_with_session_metadata", "retrieval_score": 14, "matched_terms": ["android", "example", "low", "non", "ui", "vision", "xr"], "focus_reason": "Matched session signals: android, example, low, non, ui, vision."}, {"lens_id": "medical", "lens_name": "Android XR Medical/Clinical Specialization", "rule_id": "predictability_over_polish", "rule_text": "Prioritize highly predictable, consistent interaction patterns over novel or delightful UI flourishes; avoid ambiguous iconography or playful microinteractions for clinical-context controls.", "why_it_matters": "Clinical users need to trust that a control behaves exactly the same way every time under pressure; novelty or ambiguity that might charm a casual user reads as risk in this context.", "telemetry_signal": "Elevated hesitation or repeated verification-style re-checks (for example re-pressing a toggle to confirm state) on controls using non-standard iconography, compared to controls using conventional Material Design patterns.", "detection_method": "telemetry_inferable", "retrieval_score": 12, "matched_terms": ["example", "interaction", "low", "medical", "non", "ui"], "focus_reason": "Matched session signals: example, interaction, low, medical, non, ui."}, {"lens_id": "medical", "lens_name": "Android XR Medical/Clinical Specialization", "rule_id": "touchless_and_low_contact_interaction_support", "rule_text": "Where feasible, support touchless or minimal-contact interaction patterns (voice, gaze-assisted selection where available, or air gestures that do not require touching a physical surface).", "why_it_matters": "Sterility requirements and hands-occupied clinical tasks (for example gloved use or holding instruments) make touch-first interaction models impractical or unsafe in this context.", "telemetry_signal": "Sessions relying heavily on grab_attempt/controller_input where hand_pose data suggests limited hand availability (for example one hand consistently unavailable or in a fixed holding position), a strong signal that the current interaction model assumes more hand freedom than the user has.", "detection_method": "telemetry_inferable", "retrieval_score": 8, "matched_terms": ["example", "interaction", "low", "medical"], "focus_reason": "Matched session signals: example, interaction, low, medical."}, {"lens_id": "medical", "lens_name": "Android XR Medical/Clinical Specialization", "rule_id": "clear_error_and_state_visibility", "rule_text": "System state (especially error states or incomplete actions) must be immediately and unambiguously visible, not inferred from subtle visual cues.", "why_it_matters": "In time-sensitive or high-stakes clinical use, a missed or ambiguous error state can have significant downstream consequences; this persona cannot afford to guess at system state.", "telemetry_signal": "Sessions showing continued interaction attempts on a control after an error/failure state was logged, suggesting the error was not visible or clear enough for the user to notice and adjust.", "detection_method": "telemetry_inferable", "retrieval_score": 6, "matched_terms": ["interaction", "low", "medical"], "focus_reason": "Matched session signals: interaction, low, medical."}]}, "findings": []}]};
+    const severityRank = { high: 0, medium: 1, low: 2 };
+    const AUTO_REFRESH_INTERVAL_MS = 5000;
+    let activeTab = "latest";
+    let pendingIgnoreItem = null;
+
+    function escapeHtml(value) {
+      return String(value === undefined || value === null ? "" : value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function powershellQuote(value) {
+      return "'" + String(value || "").replace(/'/g, "''") + "'";
+    }
+
+    function storageKey() {
+      return "xr-review-state::" + (window.location.pathname || report.source || report.rubric_path || "default");
+    }
+
+    function tabStorageKey() {
+      return storageKey() + "::active-tab";
+    }
+
+    function loadState() {
+      try {
+        const raw = window.localStorage.getItem(storageKey());
+        if (!raw) {
+          return { completed: {}, ignored: {} };
+        }
+        const parsed = JSON.parse(raw);
+        return {
+          completed: parsed.completed || {},
+          ignored: parsed.ignored || {},
+        };
+      } catch (_error) {
+        return { completed: {}, ignored: {} };
+      }
+    }
+
+    let reviewState = loadState();
+
+    function saveState() {
+      window.localStorage.setItem(storageKey(), JSON.stringify(reviewState));
+    }
+
+    function loadActiveTab() {
+      try {
+        const saved = window.sessionStorage.getItem(tabStorageKey());
+        if (saved === "latest" || saved === "all" || saved === "review") {
+          return saved;
+        }
+      } catch (_error) {
+        return "latest";
+      }
+      return "latest";
+    }
+
+    function saveActiveTab() {
+      try {
+        window.sessionStorage.setItem(tabStorageKey(), activeTab);
+      } catch (_error) {
+        // Ignore storage write failures; tab state will just reset on reload.
+      }
+    }
+
+    activeTab = loadActiveTab();
+
+    function getSessionSortValue(session, index) {
+      return session.started_at_epoch_ms || index;
+    }
+
+    function getOrderedSessions() {
+      return (report.sessions || [])
+        .map((session, index) => Object.assign({ _sortIndex: index }, session))
+        .sort((a, b) => getSessionSortValue(a, a._sortIndex) - getSessionSortValue(b, b._sortIndex));
+    }
+
+    function getLatestSession() {
+      const sessions = getOrderedSessions();
+      return sessions.length ? sessions[sessions.length - 1] : null;
+    }
+
+    function getOccurrences() {
+      const sessions = getOrderedSessions();
+      const items = [];
+      sessions.forEach((session, sessionIndex) => {
+        (session.findings || []).forEach((finding, findingIndex) => {
+          items.push(Object.assign({}, finding, {
+            session_file: session.file,
+            session_id: session.session_id,
+            app: session.app,
+            scene: session.scene,
+            telemetry_summary: session.telemetry_summary || {},
+            started_at_epoch_ms: session.started_at_epoch_ms,
+            ended_at_epoch_ms: session.ended_at_epoch_ms,
+            sessionIndex: sessionIndex,
+            findingIndex: findingIndex,
+          }));
+        });
+      });
+      return items;
+    }
+
+    function statusForKey(key) {
+      if (reviewState.completed[key]) {
+        return "completed";
+      }
+      if (reviewState.ignored[key]) {
+        return "ignored";
+      }
+      return "open";
+    }
+
+    function compareSeverity(left, right) {
+      return (severityRank[left] ?? 99) - (severityRank[right] ?? 99);
+    }
+
+    function sortFindings(items) {
+      return items.slice().sort((left, right) => {
+        const severityDelta = compareSeverity(left.severity, right.severity);
+        if (severityDelta !== 0) {
+          return severityDelta;
+        }
+        return left.rule_id.localeCompare(right.rule_id);
+      });
+    }
+
+    function getGroupedItems() {
+      const grouped = new Map();
+      getOccurrences().forEach((occurrence) => {
+        const key = occurrence.review_key;
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            key: key,
+            rule_id: occurrence.rule_id,
+            rule_text: occurrence.rule_text,
+            interpretation: occurrence.interpretation,
+            target: occurrence.target,
+            severity: occurrence.severity,
+            suggested_fix: occurrence.suggested_fix,
+            lens_id: occurrence.lens_id || "",
+            lens_name: occurrence.lens_name || "",
+            rule_source_type: occurrence.rule_source_type || "base",
+            related_rule_ids: occurrence.related_rule_ids || [],
+            occurrences: [],
+          });
+        }
+        const entry = grouped.get(key);
+        if (compareSeverity(occurrence.severity, entry.severity) < 0) {
+          entry.severity = occurrence.severity;
+        }
+        entry.occurrences.push(occurrence);
+      });
+
+      return Array.from(grouped.values())
+        .map((entry) => {
+          entry.occurrences.sort((left, right) => {
+            return (right.started_at_epoch_ms || right.sessionIndex) - (left.started_at_epoch_ms || left.sessionIndex);
+          });
+          entry.session_count = new Set(entry.occurrences.map((item) => item.session_file)).size;
+          entry.latest_occurrence = entry.occurrences[0] || null;
+          return entry;
+        })
+        .sort((left, right) => {
+          const severityDelta = compareSeverity(left.severity, right.severity);
+          if (severityDelta !== 0) {
+            return severityDelta;
+          }
+          return right.occurrences.length - left.occurrences.length;
+        });
+    }
+
+    function countStatuses(groupedItems) {
+      const counts = { open: 0, completed: 0, ignored: 0 };
+      groupedItems.forEach((item) => {
+        counts[statusForKey(item.key)] += 1;
+      });
+      return counts;
+    }
+
+    function telemetrySummaryLine(telemetry) {
+      if (!telemetry) {
+        return "No telemetry summary available.";
+      }
+      return [
+        (telemetry.event_count || 0) + " events",
+        (telemetry.click_count || 0) + " clicks",
+        (telemetry.rotation_change_count || 0) + " rotations",
+        (telemetry.transform_change_count || 0) + " transforms",
+        (telemetry.spatial_transform_count || 0) + " spatial moves",
+        (telemetry.spatial_resize_count || 0) + " resizes",
+        (telemetry.hand_pose_count || 0) + " hand snapshots"
+      ].join(", ");
+    }
+
+    function formatSessionMeta(session) {
+      return escapeHtml((session.app || "unknown app") + " / " + (session.scene || "unknown scene"));
+    }
+
+    function engineLabel(engine) {
+      const mode = (engine && (engine.mode_used || engine.mode_requested) || "heuristic").toUpperCase();
+      const model = engine && engine.ai_model ? " / " + engine.ai_model : "";
+      if ((engine && engine.mode_used) === "heuristic") {
+        return "HEURISTIC";
+      }
+      return mode + model;
+    }
+
+    function analysisStatusLine(engine) {
+      if (!engine) {
+        return "Heuristic analysis only.";
+      }
+      if (engine.mode_used === "heuristic") {
+        if (engine.ai_status === "not_configured") {
+          return "Heuristic fallback because " + (engine.reason || "AI is not configured") + ".";
+        }
+        if (engine.ai_status === "request_failed" || engine.ai_status === "response_invalid") {
+          return "Heuristic fallback because " + (engine.reason || "the AI pass failed") + ".";
+        }
+        return "Heuristic analysis only.";
+      }
+      return "AI-assisted review using " + (engine.ai_model || "configured model") + ".";
+    }
+
+    function availableLensMap() {
+      const map = new Map();
+      (report.available_lenses || []).forEach((lens) => {
+        map.set(lens.id, lens);
+      });
+      return map;
+    }
+
+    function lensDisplayNames(lensIds) {
+      const lensMap = availableLensMap();
+      return (lensIds || []).map((lensId) => {
+        const lens = lensMap.get(lensId);
+        return lens ? lens.name : lensId;
+      });
+    }
+
+    function renderLensTags(lensIds) {
+      const names = lensDisplayNames(lensIds);
+      if (!names.length) {
+        return "<span class='meta'>None</span>";
+      }
+      return names.map((name) => {
+        return "<span class='pill'>" + escapeHtml(name) + "</span>";
+      }).join(" ");
+    }
+
+    function renderLensFocusRules(focusRules) {
+      if (!focusRules || !focusRules.length) {
+        return "";
+      }
+      return "<section class='surface section-stack'>" +
+        "<div><div class='eyebrow'>Specialization focus</div><h3>Retrieved Lens Heuristics</h3></div>" +
+        focusRules.map((item) => {
+          const matched = item.matched_terms && item.matched_terms.length
+            ? "<div class='meta'>Matched terms: " + escapeHtml(item.matched_terms.join(", ")) + "</div>"
+            : "";
+          return "<article class='mini-card'>" +
+            "<div class='finding-header'>" +
+              "<div><strong>" + escapeHtml(item.lens_name + " / " + item.rule_id) + "</strong></div>" +
+              "<span class='pill'>" + escapeHtml((item.detection_method || "telemetry_inferable").replace(/_/g, " ").toUpperCase()) + "</span>" +
+            "</div>" +
+            "<p class='rule-text'>" + escapeHtml(item.rule_text || "") + "</p>" +
+            "<p><strong>Why surfaced:</strong> " + escapeHtml(item.focus_reason || "") + "</p>" +
+            matched +
+          "</article>";
+        }).join("") +
+      "</section>";
+    }
+
+    function renderLensHistory(lensContext) {
+      const history = lensContext && lensContext.live_toggle_history || [];
+      if (!history.length) {
+        return "";
+      }
+      return "<div class='occurrence-list'>" + history.slice(-6).map((entry) => {
+        const active = lensDisplayNames(entry.active_lenses || []).join(", ") || "none";
+        return "<div class='occurrence-item'>" +
+          "<div class='occurrence-meta'>t=" + escapeHtml(String(entry.t ?? "?")) + "s</div>" +
+          "<div>" + escapeHtml(active) + "</div>" +
+        "</div>";
+      }).join("") + "</div>";
+    }
+
+    function summaryCards() {
+      const groupedItems = getGroupedItems();
+      const statusCounts = countStatuses(groupedItems);
+      const sessions = getOrderedSessions();
+      const latest = getLatestSession();
+      const engine = report.analysis_engine || {};
+      const cards = [
+        ["Sessions", String(sessions.length)],
+        ["Open Items", String(statusCounts.open)],
+        ["Completed", String(statusCounts.completed)],
+        ["Not Important", String(statusCounts.ignored)],
+        ["Disabled Rules", String((report.disabled_rule_ids || []).length)],
+        ["Lenses", String((report.available_lenses || []).length)],
+        ["Engine", engineLabel(engine)],
+      ];
+      document.getElementById("hero-copy").innerHTML =
+        "Generated " + escapeHtml(report.generated_at || "") +
+        ". Latest session: <strong>" + escapeHtml(latest ? latest.file : "none") + "</strong>. " +
+        "Rubric: <strong>" + escapeHtml(report.rubric || "unknown") + "</strong>. " +
+        "Analysis: <strong>" + escapeHtml(analysisStatusLine(engine)) + "</strong>";
+      document.getElementById("hero-stats").innerHTML = cards.map((card) => {
+        return "<article class='summary-card'><div class='summary-label'>" +
+          escapeHtml(card[0]) + "</div><div class='summary-value'>" +
+          escapeHtml(card[1]) + "</div></article>";
+      }).join("");
+    }
+
+    function shouldAutoRefresh() {
+      const path = (window.location.pathname || "").toLowerCase();
+      return path.endsWith("/latest_analysis.html") || path.endsWith("\latest_analysis.html");
+    }
+
+    function setupAutoRefresh() {
+      const refreshNote = document.getElementById("refresh-note");
+      if (!shouldAutoRefresh()) {
+        refreshNote.textContent = "Viewing a snapshot report. Re-run the watcher to regenerate this file.";
+        return;
+      }
+
+      refreshNote.textContent =
+        "Auto-refresh is on for latest_analysis.html. This page reloads every 5 seconds so new watcher output shows up without a manual browser refresh.";
+
+      window.setInterval(() => {
+        window.location.reload();
+      }, AUTO_REFRESH_INTERVAL_MS);
+    }
+
+    function updateTabButtons() {
+      document.querySelectorAll(".tab-button").forEach((button) => {
+        button.classList.toggle("active", button.dataset.tab === activeTab);
+      });
+      document.querySelectorAll(".panel").forEach((panel) => {
+        panel.classList.toggle("active", panel.id === "panel-" + activeTab);
+      });
+      saveActiveTab();
+    }
+
+    function renderActionButtons(item, status) {
+      if (status === "completed" || status === "ignored") {
+        return "<div class='button-row'>" +
+          "<button class='button-subtle' type='button' data-action='restore' data-key='" + escapeHtml(item.key) + "'>Return To Open</button>" +
+          "</div>";
+      }
+      return "<div class='button-row'>" +
+        "<button class='button' type='button' data-action='complete' data-key='" + escapeHtml(item.key) + "'>Mark Completed</button>" +
+        "<button class='button-danger' type='button' data-action='ignore' data-key='" + escapeHtml(item.key) + "'>Not Important</button>" +
+        "</div>";
+    }
+
+    function renderGroupedCard(item, status) {
+      const latestOccurrence = item.latest_occurrence;
+      const lensLine = item.lens_name
+        ? "<div class='eyebrow'>" + escapeHtml(item.lens_name + " lens") + "</div>"
+        : "";
+      const judgment = latestOccurrence && latestOccurrence.judgment
+        ? "<p><strong>Researcher judgment:</strong> " + escapeHtml(latestOccurrence.judgment) + "</p>"
+        : "";
+      const analysisMeta = latestOccurrence && (latestOccurrence.analysis_method || latestOccurrence.confidence)
+        ? "<div class='eyebrow'>" + escapeHtml([
+            latestOccurrence.analysis_method ? latestOccurrence.analysis_method.toUpperCase() : "",
+            latestOccurrence.confidence ? latestOccurrence.confidence.toUpperCase() + " confidence" : ""
+          ].filter(Boolean).join(" | ")) + "</div>"
+        : "";
+      const related = item.related_rule_ids && item.related_rule_ids.length
+        ? "<p><strong>Related rules:</strong> " + escapeHtml(item.related_rule_ids.join(", ")) + "</p>"
+        : "";
+      const occurrences = item.occurrences.slice(0, 4).map((occurrence) => {
+        return "<div class='occurrence-item'>" +
+          "<div class='occurrence-meta'>" + escapeHtml(occurrence.session_file) + " | " +
+          escapeHtml((occurrence.app || "unknown app") + " / " + (occurrence.scene || "unknown scene")) + "</div>" +
+          "<div>" + escapeHtml(occurrence.evidence_from_telemetry) + "</div>" +
+        "</div>";
+      }).join("");
+      return "<article class='finding-card severity-" + escapeHtml(item.severity) + "'>" +
+        "<div class='finding-header'>" +
+          "<div>" +
+            "<div class='eyebrow'>" + escapeHtml(item.session_count + " sessions | " + item.occurrences.length + " occurrences") + "</div>" +
+            lensLine +
+            analysisMeta +
+            "<h3>" + escapeHtml(item.rule_id + " on " + (item.target || "unknown")) + "</h3>" +
+          "</div>" +
+          "<span class='pill'>" + escapeHtml(item.severity.toUpperCase()) + "</span>" +
+        "</div>" +
+        "<p class='rule-text'>" + escapeHtml(item.rule_text) + "</p>" +
+        "<p><strong>What this means:</strong> " + escapeHtml(item.interpretation) + "</p>" +
+        judgment +
+        "<p><strong>Recommended fix:</strong> " + escapeHtml(item.suggested_fix) + "</p>" +
+        "<p><strong>Latest evidence:</strong> " + escapeHtml(latestOccurrence ? latestOccurrence.evidence_from_telemetry : "No evidence available.") + "</p>" +
+        related +
+        renderActionButtons(item, status) +
+        "<div class='occurrence-list'>" + occurrences + "</div>" +
+      "</article>";
+    }
+
+    function renderLatestFindingCard(item, session) {
+      const status = statusForKey(item.review_key);
+      if (status !== "open") {
+        return "";
+      }
+      const aggregatedItem = {
+        key: item.review_key,
+        rule_id: item.rule_id,
+        rule_text: item.rule_text,
+        interpretation: item.interpretation,
+        target: item.target,
+        severity: item.severity,
+        suggested_fix: item.suggested_fix,
+        related_rule_ids: item.related_rule_ids || [],
+        occurrences: [item],
+        session_count: 1,
+        latest_occurrence: item,
+      };
+      return renderGroupedCard(aggregatedItem, "open");
+    }
+
+    function renderLatestPanel() {
+      const panel = document.getElementById("panel-latest");
+      const latest = getLatestSession();
+      if (!latest) {
+        panel.innerHTML = "<div class='empty-state'>No sessions were available to analyze.</div>";
+        return;
+      }
+
+      const openLatestFindings = (latest.findings || []).map((finding) => {
+        return renderLatestFindingCard(finding, latest);
+      }).filter(Boolean);
+      const hiddenCount = (latest.findings || []).length - openLatestFindings.length;
+      const targets = (latest.telemetry_summary && latest.telemetry_summary.targets || []).join(", ") || "None";
+      const components = (latest.telemetry_summary && latest.telemetry_summary.components || []).join(", ") || "None";
+      const latestEngine = latest.analysis_engine || report.analysis_engine || {};
+      const latestLensContext = latest.lens_context || {};
+      const disabledRules = (report.disabled_rule_ids || []).length
+        ? "<div class='mini-card'><strong>Disabled in rubric:</strong> " + escapeHtml(report.disabled_rule_ids.join(", ")) + "</div>"
+        : "";
+      panel.innerHTML =
+        "<section class='surface section-stack'>" +
+          "<div class='session-header'>" +
+            "<div><div class='eyebrow'>Latest session</div><h2>" + escapeHtml(latest.file) + "</h2></div>" +
+            "<div class='meta'>Session ID: " + escapeHtml(latest.session_id || "unknown") + "</div>" +
+          "</div>" +
+          "<div class='card-grid'>" +
+            "<div class='mini-card'><strong>Context</strong><div class='meta'>" + formatSessionMeta(latest) + "</div></div>" +
+            "<div class='mini-card'><strong>Telemetry</strong><div class='meta'>" + escapeHtml(telemetrySummaryLine(latest.telemetry_summary)) + "</div></div>" +
+            "<div class='mini-card'><strong>Targets</strong><div class='meta'>" + escapeHtml(targets) + "</div></div>" +
+            "<div class='mini-card'><strong>Components</strong><div class='meta'>" + escapeHtml(components) + "</div></div>" +
+            "<div class='mini-card'><strong>Engine</strong><div class='meta'>" + escapeHtml(analysisStatusLine(latestEngine)) + "</div></div>" +
+            "<div class='mini-card'><strong>Active Lenses</strong><div class='meta'>" + renderLensTags(latestLensContext.current_active_lenses || []) + "</div></div>" +
+          "</div>" +
+          (latest.researcher_summary
+            ? "<div class='mini-card'><strong>Researcher Readout</strong><div class='meta'>" + escapeHtml(latest.researcher_summary) + "</div></div>"
+            : "") +
+          ((latestLensContext.live_toggle_history && latestLensContext.live_toggle_history.length)
+            ? "<div class='mini-card'><strong>Live Lens Changes</strong>" + renderLensHistory(latestLensContext) + "</div>"
+            : "") +
+          disabledRules +
+          (hiddenCount > 0 ? "<div class='status-note'>" + escapeHtml(String(hiddenCount)) + " latest-session item(s) are already in Completed or Not Important.</div>" : "") +
+        "</section>" +
+        renderLensFocusRules(latestLensContext.retrieved_focus_rules || []) +
+        (openLatestFindings.length
+          ? "<section class='section-stack'>" + openLatestFindings.join("") + "</section>"
+          : "<div class='ok'>No open findings remain for the latest session.</div>");
+    }
+
+    function renderSessionHistory() {
+      return getOrderedSessions().slice().reverse().map((session) => {
+        const findingCount = (session.findings || []).length;
+        const activeLensNames = lensDisplayNames(
+          (session.lens_context && session.lens_context.current_active_lenses) || []
+        ).join(", ");
+        return "<article class='session-card'>" +
+          "<div class='session-header'>" +
+            "<div><h3>" + escapeHtml(session.file) + "</h3><div class='meta'>" + formatSessionMeta(session) + "</div></div>" +
+            "<span class='pill'>" + escapeHtml(String(findingCount)) + " findings</span>" +
+          "</div>" +
+          "<p><strong>Telemetry:</strong> " + escapeHtml(telemetrySummaryLine(session.telemetry_summary)) + "</p>" +
+          (activeLensNames
+            ? "<p><strong>Lenses:</strong> " + escapeHtml(activeLensNames) + "</p>"
+            : "") +
+          (session.researcher_summary
+            ? "<p><strong>Researcher readout:</strong> " + escapeHtml(session.researcher_summary) + "</p>"
+            : "") +
+        "</article>";
+      }).join("");
+    }
+
+    function renderAllPanel() {
+      const panel = document.getElementById("panel-all");
+      const groupedItems = getGroupedItems();
+      const openItems = groupedItems.filter((item) => statusForKey(item.key) === "open");
+      const summaryNote = openItems.length
+        ? "<div class='status-note'>" + escapeHtml(String(openItems.length)) + " open cross-session item(s) need review.</div>"
+        : "<div class='ok'>No open items remain across the analyzed sessions.</div>";
+      panel.innerHTML =
+        "<div class='two-column'>" +
+          "<section class='surface section-stack'>" +
+            "<div><div class='eyebrow'>All sessions backlog</div><h2>Open Cross-Session Findings</h2></div>" +
+            summaryNote +
+            (openItems.length
+              ? "<div class='section-stack'>" + openItems.map((item) => renderGroupedCard(item, "open")).join("") + "</div>"
+              : "") +
+          "</section>" +
+          "<section class='surface section-stack'>" +
+            "<div><div class='eyebrow'>Session history</div><h2>Analyzed Sessions</h2></div>" +
+            "<div class='session-history'>" + renderSessionHistory() + "</div>" +
+          "</section>" +
+        "</div>";
+    }
+
+    function renderReviewSection(items, emptyText, bucket) {
+      if (!items.length) {
+        return "<div class='empty-state'>" + escapeHtml(emptyText) + "</div>";
+      }
+      return items.map((item) => {
+        return renderGroupedCard(item, bucket);
+      }).join("");
+    }
+
+    function renderReviewPanel() {
+      const panel = document.getElementById("panel-review");
+      const groupedItems = getGroupedItems();
+      const completedItems = groupedItems.filter((item) => statusForKey(item.key) === "completed");
+      const ignoredItems = groupedItems.filter((item) => statusForKey(item.key) === "ignored");
+      panel.innerHTML =
+        "<section class='surface section-stack'>" +
+          "<div><div class='eyebrow'>Completed queue</div><h2>Completed</h2></div>" +
+          renderReviewSection(completedItems, "No findings have been marked completed yet.", "completed") +
+        "</section>" +
+        "<section class='surface section-stack'>" +
+          "<div><div class='eyebrow'>Muted queue</div><h2>Not Important</h2></div>" +
+          "<p class='status-note'>Muted items are hidden from the open views. Use the disable command if you want future analyses to stop flagging that rule type.</p>" +
+          renderReviewSection(ignoredItems, "No findings have been marked not important yet.", "ignored") +
+        "</section>";
+    }
+
+    function findGroupedItem(key) {
+      return getGroupedItems().find((item) => item.key === key) || null;
+    }
+
+    function openIgnoreModal(key) {
+      const item = findGroupedItem(key);
+      if (!item) {
+        return;
+      }
+      pendingIgnoreItem = item;
+      const command =
+        "& " + powershellQuote(report.python_executable || "python") +
+        " " + powershellQuote(report.rules_manager_path || "hci_for_glasses\\manage_rubric_rules.py") +
+        " --rubric-path " + powershellQuote(report.rubric_path || report.rubric || "") +
+        " --disable-rule " + item.rule_id;
+      document.getElementById("ignore-title").textContent = item.rule_id + " on " + (item.target || "unknown");
+      document.getElementById("ignore-copy").textContent =
+        "Hide this finding in the dashboard now, or run the command below to update the referenced rubric JSON so future analyses stop flagging this rule type.";
+      document.getElementById("ignore-command").textContent = command;
+      document.getElementById("ignore-modal").classList.add("open");
+      document.getElementById("ignore-modal").setAttribute("aria-hidden", "false");
+    }
+
+    function closeIgnoreModal() {
+      pendingIgnoreItem = null;
+      document.getElementById("ignore-modal").classList.remove("open");
+      document.getElementById("ignore-modal").setAttribute("aria-hidden", "true");
+    }
+
+    function markCompleted(key) {
+      delete reviewState.ignored[key];
+      reviewState.completed[key] = new Date().toISOString();
+      saveState();
+      renderDashboard();
+    }
+
+    function restoreOpen(key) {
+      delete reviewState.completed[key];
+      delete reviewState.ignored[key];
+      saveState();
+      renderDashboard();
+    }
+
+    function markIgnoredLocally() {
+      if (!pendingIgnoreItem) {
+        return;
+      }
+      delete reviewState.completed[pendingIgnoreItem.key];
+      reviewState.ignored[pendingIgnoreItem.key] = new Date().toISOString();
+      saveState();
+      closeIgnoreModal();
+      renderDashboard();
+    }
+
+    async function copyDisableCommand() {
+      const command = document.getElementById("ignore-command").textContent;
+      try {
+        await navigator.clipboard.writeText(command);
+        document.getElementById("ignore-copy").textContent =
+          "Disable command copied. Run it in PowerShell, then re-run the analyzer or watcher.";
+      } catch (_error) {
+        document.getElementById("ignore-copy").textContent =
+          "Copy failed in the browser. You can still select the command manually and run it in PowerShell.";
+      }
+    }
+
+    function renderDashboard() {
+      summaryCards();
+      updateTabButtons();
+      renderLatestPanel();
+      renderAllPanel();
+      renderReviewPanel();
+      bindDynamicButtons();
+    }
+
+    function bindDynamicButtons() {
+      document.querySelectorAll("[data-action][data-key]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const key = button.getAttribute("data-key");
+          const action = button.getAttribute("data-action");
+          if (action === "complete") {
+            markCompleted(key);
+          } else if (action === "restore") {
+            restoreOpen(key);
+          } else if (action === "ignore") {
+            openIgnoreModal(key);
+          }
+        });
+      });
+    }
+
+    document.querySelectorAll(".tab-button").forEach((button) => {
+      button.addEventListener("click", () => {
+        activeTab = button.dataset.tab;
+        updateTabButtons();
+      });
+    });
+    document.getElementById("ignore-close").addEventListener("click", closeIgnoreModal);
+    document.getElementById("ignore-local").addEventListener("click", markIgnoredLocally);
+    document.getElementById("ignore-copy-command").addEventListener("click", copyDisableCommand);
+    document.getElementById("ignore-modal").addEventListener("click", (event) => {
+      if (event.target.id === "ignore-modal") {
+        closeIgnoreModal();
+      }
+    });
+
+    setupAutoRefresh();
+    renderDashboard();
+  </script>
+</body>
+</html>

@@ -40,3 +40,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Hello Android XR"
 include(":app")
+include(":xr-telemetry")

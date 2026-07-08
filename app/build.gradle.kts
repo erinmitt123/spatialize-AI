@@ -57,6 +57,7 @@ java {
 dependencies {
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
+    implementation(project(":xr-telemetry"))
     implementation(libs.androidx.arcore)
     implementation(libs.androidx.scenecore)
     implementation(libs.androidx.compose)

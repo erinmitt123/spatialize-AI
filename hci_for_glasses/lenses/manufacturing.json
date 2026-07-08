@@ -1,0 +1,52 @@
+{
+  "rubric_name": "Android XR Manufacturing/Industrial AR Specialization",
+  "extends": "xr_hci_rubric.json",
+  "persona": "manufacturing",
+  "purpose": "Rules calibrated for industrial/manufacturing AR users, who typically work hands-busy or gloved, need high physical-alignment precision, and face real-world consequences for interaction errors.",
+  "source": "Derived from established industrial AR/assembly-guidance conventions combined with Android XR interaction and accessibility guidelines.",
+  "rules": [
+    {
+      "id": "glove_compatible_target_sizing",
+      "rule": "Touch/grab targets should assume reduced dexterity and precision (for example gloved hands or hands occupied with tools), and size targets larger than the general 48-56dp baseline where feasible.",
+      "why_it_matters": "Manufacturing users frequently interact one-handed, gloved, or with limited fine motor precision due to safety equipment; standard target sizing calibrated for bare-handed casual use will underperform for this group specifically.",
+      "telemetry_signal": "Elevated failed grab_attempt rate and elevated distance_to_target concentrated in sessions flagged with a manufacturing/industrial context, compared to general sessions on the same object.",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "physical_alignment_accuracy",
+      "rule": "Virtual overlays anchored to real-world objects (for example assembly guides or measurement markers) must maintain tight, stable alignment with minimal drift.",
+      "why_it_matters": "In this context, a misaligned overlay is not just a visual annoyance; it can lead to an incorrect real-world assembly action with physical consequences.",
+      "telemetry_signal": "Repeated repositioning or re-anchoring events on the same overlay/marker object, or ui_interaction events indicating the user manually nudged an anchored element after initial placement.",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "unambiguous_confirmation_for_consequential_steps",
+      "rule": "Any action tied to a real-world consequential step (for example mark step complete or confirm part installed) needs unambiguous, hard-to-miss confirmation feedback, more emphatic than a typical UI acknowledgment.",
+      "why_it_matters": "In this domain, a step advancing without the user realizing it, or not advancing when the user thinks it did, can propagate a real assembly error downstream.",
+      "telemetry_signal": "controller_input or grab_attempt events on a step-confirmation control with no corresponding state-change logged, or rapid repeated presses suggesting the user is not sure the step registered. Cross-reference with dead_control_no_response and press_feedback_confirmation from the base rubric.",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "minimal_interruption_workflow",
+      "rule": "Avoid interrupting the user's hands-on task with modal dialogs or interactions that require setting down tools or breaking focus from the physical workspace.",
+      "why_it_matters": "Manufacturing tasks are often continuous and hands-occupied; an interaction model that assumes free hands and full attention does not match this user's actual working conditions.",
+      "telemetry_signal": "Long pauses between consecutive events suggesting the user stepped away from the interaction to address something in the physical environment, especially following a modal/blocking ui_interaction event.",
+      "severity_if_violated": "medium"
+    }
+  ],
+  "schema_additions_for_persona_detection": {
+    "note": "Add user_persona: manufacturing to session metadata for labeled test data. For real sessions, infer via signals such as sustained low grab precision across a session, heavy reliance on anchored or marker-based overlays, or long gaps between events from hands-busy task switching.",
+    "applies_to_rules": [
+      "glove_compatible_target_sizing",
+      "physical_alignment_accuracy",
+      "minimal_interruption_workflow"
+    ]
+  },
+  "output_format_for_agent": {
+    "rule_id": "one of the ids above",
+    "rule_text": "short human-readable restatement",
+    "evidence_from_telemetry": "specific numbers/events from the session that support the finding",
+    "suggested_fix": "concrete, actionable redesign suggestion",
+    "severity": "low | medium | high"
+  }
+}

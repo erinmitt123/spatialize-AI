@@ -46,12 +46,16 @@ import androidx.xr.compose.platform.LocalSpatialCapabilities
 import com.example.helloandroidxr.R
 import com.example.helloandroidxr.environment.EnvironmentController
 import com.example.helloandroidxr.ui.theme.HelloAndroidXRTheme
+import com.example.xrtelemetry.XrTelemetryRecorder
 
 /**
  * Controls for changing the user's Environment, and toggling between Home Space and Full Space
  */
 @Composable
-fun EnvironmentControls(modifier: Modifier = Modifier) {
+fun EnvironmentControls(
+    telemetry: XrTelemetryRecorder,
+    modifier: Modifier = Modifier,
+) {
     // If we aren't able to access the session, these buttons wouldn't work and shouldn't be shown
     val activity = LocalActivity.current
     val session = LocalSession.current
@@ -68,20 +72,33 @@ fun EnvironmentControls(modifier: Modifier = Modifier) {
             Row(Modifier.width(IntrinsicSize.Min)) {
                 if (uiIsSpatialized) {
                     SetVirtualEnvironmentButton {
+                        telemetry.logClick(
+                            "set_virtual_environment_button",
+                            target = environmentModelName
+                        )
                         environmentController.requestCustomEnvironment(
                             environmentModelName
                         )
                     }
-                    SetPassthroughButton { environmentController.requestPassthrough() }
+                    SetPassthroughButton {
+                        telemetry.logClick("set_passthrough_button")
+                        environmentController.requestPassthrough()
+                    }
                     VerticalDivider(
                         modifier = Modifier
                             .height(32.dp)
                             .align(Alignment.CenterVertically),
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    RequestHomeSpaceButton { environmentController.requestHomeSpaceMode() }
+                    RequestHomeSpaceButton {
+                        telemetry.logClick("request_home_space_button")
+                        environmentController.requestHomeSpaceMode()
+                    }
                 } else {
-                    RequestFullSpaceButton { environmentController.requestFullSpaceMode() }
+                    RequestFullSpaceButton {
+                        telemetry.logClick("request_full_space_button")
+                        environmentController.requestFullSpaceMode()
+                    }
                 }
             }
         }

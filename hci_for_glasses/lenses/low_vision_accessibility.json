@@ -1,0 +1,97 @@
+{
+  "rubric_name": "Android XR Low-Vision & High-Contrast Accessibility Specialization",
+  "extends": "xr_hci_rubric.json",
+  "purpose": "Additional rules focused specifically on users with low vision, color vision deficiency, or light sensitivity, who need larger, higher-contrast, and less detail-dependent UI to use an Android XR app comfortably.",
+  "source": "Android XR app quality guidelines, Android XR accessibility overview, Android XR visual design guidelines, and WCAG 2.1 contrast guidance as referenced by Android accessibility guidance.",
+  "rules": [
+    {
+      "id": "minimum_contrast_ratio",
+      "rule": "Text and meaningful UI graphics must meet at least a 4.5:1 contrast ratio against their background (3:1 for large-scale text of 18pt+ regular or 14pt+ bold), per WCAG and Android accessibility guidance.",
+      "why_it_matters": "Below this ratio, low-vision users and users with light sensitivity may not be able to perceive text or icons at all, regardless of size.",
+      "telemetry_signal": "Not directly measurable from interaction telemetry; requires a static color-contrast check on each UI component's foreground/background pair.",
+      "detection_method": "static_design_review",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "enlarged_touch_targets_for_low_vision",
+      "rule": "While the platform baseline is 48dp minimum / 56dp optimal, apps should consider an enlarged or user-adjustable target size option for users who need it, rather than treating 48dp as sufficient for everyone.",
+      "why_it_matters": "Low-vision users may need meaningfully larger targets than the platform baseline to locate and hit controls reliably.",
+      "telemetry_signal": "Elevated failed grab_attempt rate or elevated distance_to_target specifically in sessions flagged with an accessibility_mode or low_vision_mode metadata field, compared to sessions without it.",
+      "detection_method": "telemetry_inferable_with_session_metadata",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "no_color_only_signaling",
+      "rule": "Never use color as the sole way to convey status, selection, or meaning (for example red/green only); pair color with shape, icon, text label, or pattern differences.",
+      "why_it_matters": "Users with color vision deficiency cannot reliably distinguish meaning conveyed by color alone.",
+      "telemetry_signal": "Not directly measurable from interaction telemetry; requires a static review of any state or status indicator that currently relies on color as its only differentiator.",
+      "detection_method": "static_design_review",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "text_and_display_scaling_support",
+      "rule": "App layouts should respect and scale correctly with system-level text size and display size settings rather than using fixed, unscalable text and UI elements.",
+      "why_it_matters": "Android XR accessibility settings let users increase text size and display size; an app that ignores these settings leaves low-vision users without their expected accommodation.",
+      "telemetry_signal": "ui_interaction events showing text or layout elements that overlap, clip, or become unreadable when the session metadata indicates a non-default text_scale or display_scale setting.",
+      "detection_method": "telemetry_inferable_with_session_metadata",
+      "severity_if_violated": "high"
+    },
+    {
+      "id": "high_contrast_mode_compatibility",
+      "rule": "The app's UI should remain fully legible and functional when the system's High Contrast Fonts or Relumino outline accessibility features are enabled.",
+      "why_it_matters": "These are real user-facing Android XR accessibility settings; if custom app styling overrides or conflicts with them, low-vision users lose the accommodation they turned on.",
+      "telemetry_signal": "Increased hesitation, failed grab_attempts, or long time-to-first-interaction specifically in sessions where session metadata indicates high_contrast_mode or relumino_outline is enabled, compared to sessions without.",
+      "detection_method": "telemetry_inferable_with_session_metadata",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "avoid_fine_detail_dependence",
+      "rule": "Do not require users to perceive fine visual detail (thin lines, small distant text, subtle texture differences) to understand or operate a control.",
+      "why_it_matters": "Users with low vision may perceive blur or missing detail even when an element is technically large enough; controls that depend on fine detail to be understood will fail for them regardless of size.",
+      "telemetry_signal": "Repeated failed grab_attempt or long hesitation on components with known fine-detail styling. Cross-reference against icon_button_visual_clarity from the base rubric.",
+      "detection_method": "telemetry_inferable",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "photosensitivity_and_brightness_safety",
+      "rule": "Avoid sudden, jarring brightness changes, flashing elements, or overly bright environments; support the system's Color Inversion setting without visual conflicts.",
+      "why_it_matters": "Users with light sensitivity or migraine-related vision effects can experience discomfort or be unable to continue using the app if this is not respected.",
+      "telemetry_signal": "Not directly measurable from interaction telemetry; requires a static review of any flashing, strobing, or high-brightness transition in the app.",
+      "detection_method": "static_design_review",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "visual_identifier_personalization",
+      "rule": "Where possible, support personalization aids such as zoom, adjustable contrast, or visual identifiers and outlines around important objects, so low-vision users can locate and perceive controls themselves.",
+      "why_it_matters": "Personalization lets users with a range of visual capability self-adjust the experience rather than relying on a single fixed design to work for everyone.",
+      "telemetry_signal": "Cross-reference target_discoverability findings from the base rubric against sessions with low_vision_mode metadata; if discoverability issues concentrate in those sessions, personalization aids are likely missing or ineffective.",
+      "detection_method": "telemetry_inferable_with_session_metadata",
+      "severity_if_violated": "medium"
+    },
+    {
+      "id": "non_visual_fallback_for_key_actions",
+      "rule": "Critical actions and feedback should have a non-visual fallback (audio cue, TTS description, or TalkBack-compatible label) rather than depending on vision alone.",
+      "why_it_matters": "For users with significant vision loss, a purely visual confirmation (for example a subtle color change) is not perceivable at all; an audio or spoken alternative ensures the action is still confirmed.",
+      "telemetry_signal": "Cross-reference press_feedback_confirmation and dead_control_no_response findings from the base rubric against sessions with screen_reader_enabled or low_vision_mode metadata.",
+      "detection_method": "telemetry_inferable_with_session_metadata",
+      "severity_if_violated": "high"
+    }
+  ],
+  "schema_additions_for_accessibility_specialization": {
+    "note": "Most rules above require session-level metadata that the base telemetry schema does not currently include. Add an optional accessibility_settings object to each session with keys such as low_vision_mode, text_scale, display_scale, high_contrast_mode, relumino_outline, and screen_reader_enabled.",
+    "applies_to_rules": [
+      "enlarged_touch_targets_for_low_vision",
+      "text_and_display_scaling_support",
+      "high_contrast_mode_compatibility",
+      "visual_identifier_personalization",
+      "non_visual_fallback_for_key_actions"
+    ]
+  },
+  "output_format_for_agent": {
+    "rule_id": "one of the ids above",
+    "rule_text": "short human-readable restatement",
+    "evidence_from_telemetry": "specific numbers/events, or note static review required if detection_method is static_design_review",
+    "suggested_fix": "concrete, actionable redesign suggestion",
+    "severity": "low | medium | high"
+  }
+}
