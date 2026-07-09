@@ -3,11 +3,13 @@ package com.example.helloandroidxr.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -193,7 +195,7 @@ private fun BadExamplesSection(
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             BadExampleChip(
                 label = stringResource(R.string.hci_examples_bad_tiny),
-                width = 42.dp,
+                visualWidth = 42.dp,
                 onClick = {
                     telemetry.logUiInteraction(
                         component = "bad_example_tiny_button",
@@ -204,6 +206,8 @@ private fun BadExamplesSection(
                         extras = mapOf(
                             "example_quality" to "bad",
                             "intended_rule" to "touch_target_size",
+                            "visual_width_dp" to 42,
+                            "visual_height_dp" to 30,
                         ),
                     )
                     onStatusChange("Tiny target tapped. This should flag touch target sizing.")
@@ -211,7 +215,7 @@ private fun BadExamplesSection(
             )
             BadExampleChip(
                 label = stringResource(R.string.hci_examples_bad_ambiguous),
-                width = 42.dp,
+                visualWidth = 42.dp,
                 onClick = {
                     telemetry.logUiInteraction(
                         component = "bad_example_ambiguous_button",
@@ -222,6 +226,8 @@ private fun BadExamplesSection(
                         extras = mapOf(
                             "example_quality" to "bad",
                             "intended_rule" to "icon_button_visual_clarity",
+                            "visual_width_dp" to 42,
+                            "visual_height_dp" to 30,
                         ),
                     )
                     onStatusChange("Ambiguous button tapped. This should flag icon clarity.")
@@ -229,7 +235,7 @@ private fun BadExamplesSection(
             )
             BadExampleChip(
                 label = stringResource(R.string.hci_examples_bad_silent),
-                width = 54.dp,
+                visualWidth = 54.dp,
                 onClick = {
                     telemetry.logUiInteraction(
                         component = "bad_example_silent_button",
@@ -240,6 +246,8 @@ private fun BadExamplesSection(
                         extras = mapOf(
                             "example_quality" to "bad",
                             "intended_rule" to "press_feedback_confirmation",
+                            "visual_width_dp" to 54,
+                            "visual_height_dp" to 30,
                         ),
                     )
                     onStatusChange("Silent button tapped. This should flag missing feedback.")
@@ -319,26 +327,36 @@ private fun SectionShell(
 @Composable
 private fun BadExampleChip(
     label: String,
-    width: androidx.compose.ui.unit.Dp,
+    visualWidth: androidx.compose.ui.unit.Dp,
     onClick: () -> Unit,
 ) {
-    Surface(
+    Box(
         modifier = Modifier
-            .width(width)
-            .size(height = 30.dp, width = width)
+            .width(88.dp)
+            .height(52.dp)
             .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
+        contentAlignment = Alignment.Center,
     ) {
-        androidx.compose.foundation.layout.Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f)),
+        Surface(
+            modifier = Modifier
+                .width(visualWidth)
+                .size(height = 30.dp, width = visualWidth),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
+            shape = RoundedCornerShape(10.dp),
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline,
-            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.background(
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f)
+                ),
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
         }
     }
 }
