@@ -50,7 +50,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -89,8 +88,8 @@ import com.example.helloandroidxr.R
 import com.example.helloandroidxr.ui.components.BugdroidControls
 import com.example.helloandroidxr.ui.components.BugdroidModel
 import com.example.helloandroidxr.ui.components.BugdroidSliderControls
-import com.example.helloandroidxr.ui.components.AnalysisLensControls
 import com.example.helloandroidxr.ui.components.EnvironmentControls
+import com.example.helloandroidxr.ui.components.HciControlExamples
 import com.example.helloandroidxr.ui.components.SearchBar
 import com.example.helloandroidxr.ui.components.TextPane
 import com.example.helloandroidxr.ui.theme.HelloAndroidXRTheme
@@ -121,10 +120,6 @@ fun HelloAndroidXRApp() {
     }
     val sceneName = if (isSpatialUiEnabled) "spatial_ui" else "non_spatial_ui"
     var isTelemetrySessionActive by remember { mutableStateOf(false) }
-    var activeAnalysisLensIds by remember { mutableStateOf(emptySet<String>()) }
-    val activeAnalysisLensSignature =
-        activeAnalysisLensIds.toList().sorted().joinToString(",")
-    val currentAnalysisLensSignature by rememberUpdatedState(activeAnalysisLensSignature)
 
     LaunchedEffect(xrSession) {
         telemetry.attachSession(xrSession)
@@ -145,12 +140,7 @@ fun HelloAndroidXRApp() {
             telemetry.startSession(
                 appName = context.getString(R.string.app_name),
                 scene = sceneName,
-                metadata = buildMap {
-                    put("package_name", context.packageName)
-                    if (currentAnalysisLensSignature.isNotBlank()) {
-                        put("analysis_lenses", currentAnalysisLensSignature)
-                    }
-                }
+                metadata = mapOf("package_name" to context.packageName)
             )
             isTelemetrySessionActive = true
         }
@@ -257,32 +247,10 @@ fun HelloAndroidXRApp() {
             )
         )
     }
-    val onToggleAnalysisLens: (String) -> Unit = { lensId ->
-        val updated =
-            activeAnalysisLensIds.toMutableSet().apply {
-                if (!add(lensId)) {
-                    remove(lensId)
-                }
-            }
-        val activeLenses = updated.toList().sorted()
-        activeAnalysisLensIds = updated.toSet()
-        telemetry.updateSessionMetadata(
-            mapOf("analysis_lenses" to activeLenses.joinToString(","))
-        )
-        if (isTelemetrySessionActive) {
-            telemetry.logAnalysisLensChange(
-                lensId = lensId,
-                enabled = lensId in updated,
-                activeLenses = activeLenses,
-            )
-        }
-    }
 
     if (isSpatialUiEnabled) {
         SpatialLayout(
             telemetry = telemetry,
-            activeAnalysisLensIds = activeAnalysisLensIds,
-            onToggleAnalysisLens = onToggleAnalysisLens,
             primaryContent = {
                 PrimaryContent(
                     uiState = uiState,
@@ -312,8 +280,6 @@ fun HelloAndroidXRApp() {
     } else {
         NonSpatialTwoPaneLayout(
             telemetry = telemetry,
-            activeAnalysisLensIds = activeAnalysisLensIds,
-            onToggleAnalysisLens = onToggleAnalysisLens,
             secondaryPane = {
                 BlockOfContentOne(
                     modifier = Modifier.height(240.dp),
@@ -348,8 +314,6 @@ fun HelloAndroidXRApp() {
 @Composable
 private fun SpatialLayout(
     telemetry: XrTelemetryRecorder,
-    activeAnalysisLensIds: Set<String>,
-    onToggleAnalysisLens: (String) -> Unit,
     primaryContent: @Composable () -> Unit,
     firstSupportingContent: @Composable () -> Unit,
     secondSupportingContent: @Composable () -> Unit
@@ -443,9 +407,8 @@ private fun SpatialLayout(
                     }
                 ) {
                     TopAppBar(telemetry = telemetry)
-                    AnalysisLensControls(
-                        activeLensIds = activeAnalysisLensIds,
-                        onToggleLens = onToggleAnalysisLens,
+                    HciControlExamples(
+                        telemetry = telemetry,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                     )
                     primaryContent()
@@ -461,8 +424,6 @@ private fun SpatialLayout(
 @Composable
 private fun NonSpatialTwoPaneLayout(
     telemetry: XrTelemetryRecorder,
-    activeAnalysisLensIds: Set<String>,
-    onToggleAnalysisLens: (String) -> Unit,
     primaryPane: @Composable () -> Unit,
     secondaryPane: @Composable () -> Unit,
     modifier: Modifier = Modifier,
@@ -492,10 +453,7 @@ private fun NonSpatialTwoPaneLayout(
     ) {
         TopAppBar(telemetry = telemetry)
         Spacer(Modifier.height(12.dp))
-        AnalysisLensControls(
-            activeLensIds = activeAnalysisLensIds,
-            onToggleLens = onToggleAnalysisLens,
-        )
+        HciControlExamples(telemetry = telemetry)
         Spacer(Modifier.height(16.dp))
         if (windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.HEIGHT_DP_EXPANDED_LOWER_BOUND)) {
             TopAndBottomPaneLayout(primaryPane, secondaryPane)

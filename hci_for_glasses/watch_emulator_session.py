@@ -275,8 +275,13 @@ def latest_analyzed_session_name(report_dir):
         return None
 
     sessions = report_data.get("sessions", [])
-    if sessions and sessions[0].get("file"):
-        return sessions[0]["file"]
+    if sessions:
+        newest = max(
+            sessions,
+            key=lambda session: session.get("started_at_epoch_ms") or 0,
+        )
+        if newest.get("file"):
+            return newest["file"]
 
     source = report_data.get("source")
     if source:
@@ -531,10 +536,13 @@ def generate_reports(args, local_session_path):
         print("All-sessions analysis failed for {}".format(args.local_dir))
         return None
 
+    # The auto-refreshing dashboard (latest_analysis.*) is fed the ALL-sessions
+    # report so it shows the full session history and highlights the newest one,
+    # instead of collapsing to just the single session that was last analyzed.
     aliases = copy_latest_aliases(
         args,
         local_session_path,
-        latest_report_path,
+        all_report_path,
         all_user_report_path,
     )
     return {

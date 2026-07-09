@@ -1,0 +1,7 @@
+{
+  "default_active_lenses": [
+    "low_vision_accessibility",
+    "manufacturing"
+  ],
+  "notes": "Persistent analyzer-side defaults loaded at the beginning of each session analysis. The manufacturing lens is the construction/industrial background lens. Edit this file to change the default specialization lens stack without modifying the Android app."
+}

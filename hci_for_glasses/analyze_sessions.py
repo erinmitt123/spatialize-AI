@@ -50,7 +50,9 @@ RAPID_CLICK_GAP = 0.75      # s; consecutive clicks closer than this form a clus
 MIN_RAPID_CLICKS = 3        # clicks in one rapid cluster on a control => frustration
 MIN_MISSED_TAPS = 3         # taps that hit no control => wrong-spot hunting
 DEFAULT_ANALYSIS_MODE = "hybrid"
+DEFAULT_AI_PROVIDER = os.environ.get("XR_AI_PROVIDER", "local")
 DEFAULT_AI_MODEL = os.environ.get("XR_AI_MODEL", "gpt-4.1-mini")
+DEFAULT_LOCAL_AI_MODEL = "local_reviewer_v1"
 DEFAULT_AI_API_KEY_ENV = os.environ.get("XR_AI_API_KEY_ENV", "OPENAI_API_KEY")
 DEFAULT_AI_BASE_URL = os.environ.get(
     "XR_AI_BASE_URL", "https://api.openai.com/v1/chat/completions"
@@ -68,6 +70,34 @@ DEFAULT_PERSISTED_LENSES = [
 # Map a ui_interaction issue_flag string to the rubric rule it evidences.
 ISSUE_FLAG_TO_RULE = {
     "content_scroll_in_elevated_panel": "content_type_in_elevated_context",
+    "example_small_touch_target": "touch_target_size",
+    "example_ambiguous_icon_button": "icon_button_visual_clarity",
+    "example_low_affordance_button": "control_affordance_visibility",
+    "example_missing_feedback": "press_feedback_confirmation",
+}
+
+ISSUE_FLAG_TO_FIX = {
+    "content_scroll_in_elevated_panel": (
+        "Move scrollable primary content out of the elevated/orbiter '{component}' into "
+        "a standard anchored panel; keep only controls in elevated elements per platform "
+        "convention."
+    ),
+    "example_small_touch_target": (
+        "Enlarge '{component}' to at least the 56dp target size guidance and give it "
+        "more spacing so users do not need near-perfect precision to hit it."
+    ),
+    "example_ambiguous_icon_button": (
+        "Replace '{component}' with a clearer label or simpler iconography so the "
+        "control reads immediately at XR viewing distance."
+    ),
+    "example_low_affordance_button": (
+        "Give '{component}' stronger affordance cues such as contrast, elevation, "
+        "border treatment, or button-like styling so it is obviously interactive."
+    ),
+    "example_missing_feedback": (
+        "Add immediate visual or audio confirmation when '{component}' is pressed so "
+        "the user knows the action registered."
+    ),
 }
 
 
@@ -261,6 +291,21 @@ def stdev(xs):
     return (sum((x - m) ** 2 for x in xs) / (len(xs) - 1)) ** 0.5
 
 
+def count_label(count, singular, plural=None):
+    word = singular if count == 1 else (plural or singular + "s")
+    return "{} {}".format(count, word)
+
+
+def suggested_fix_for_issue_flag(flag, component):
+    template = ISSUE_FLAG_TO_FIX.get(flag)
+    if template:
+        return template.format(component=component)
+    return (
+        "Investigate the interaction pattern on '{}', add a more specific rubric mapping "
+        "for issue_flag='{}', and re-run the analyzer.".format(component, flag)
+    )
+
+
 def make_finding(
     rules,
     rule_id,
@@ -388,6 +433,19 @@ def normalize_analysis_mode(value):
     if mode not in {"heuristic", "ai", "hybrid"}:
         return DEFAULT_ANALYSIS_MODE
     return mode
+
+
+def normalize_ai_provider(value):
+    provider = normalize_whitespace(value).lower() or DEFAULT_AI_PROVIDER
+    if provider not in {"local", "openai"}:
+        return DEFAULT_AI_PROVIDER
+    return provider
+
+
+def configured_ai_model(provider, args):
+    if normalize_ai_provider(provider) == "local":
+        return DEFAULT_LOCAL_AI_MODEL
+    return args.ai_model
 
 
 def normalize_level(value, allowed, fallback):
@@ -811,11 +869,6 @@ def extract_session_lens_context(session, forced_lens_ids, lens_registry):
     metadata = session.get("metadata", {}) or {}
     inferred_lens_ids = []
     session_default_lenses = []
-    for key in ("analysis_lenses", "analysis_lens_ids", "analysis_focus_lenses"):
-        session_default_lenses.extend(
-            normalize_requested_lens_ids([metadata.get(key)], lens_registry)
-        )
-    session_default_lenses = list(dict.fromkeys(session_default_lenses))
 
     persona_lenses = normalize_requested_lens_ids(
         [metadata.get("user_persona")], lens_registry
@@ -1140,6 +1193,511 @@ def build_ai_messages(prompt_payload):
     ]
 
 
+def finding_component_profile(finding, component_profiles):
+    target = finding.get("target")
+    if not target:
+        return None
+    direct = component_profiles.get(target)
+    if direct:
+        return direct
+    for component_profile in component_profiles.values():
+        if target in component_profile.get("targets", {}):
+            return component_profile
+    return None
+
+
+def has_active_lens(lens_context, lens_id):
+    active = set(lens_context.get("current_active_lenses", []))
+    retrieved = set(lens_context.get("retrieval_lenses", []))
+    return lens_id in active or lens_id in retrieved
+
+
+def looks_consequential_control(value):
+    tokens = tokenize_for_retrieval(value)
+    keywords = {
+        "advance",
+        "apply",
+        "approve",
+        "complete",
+        "confirm",
+        "done",
+        "finish",
+        "install",
+        "mark",
+        "next",
+        "save",
+        "step",
+        "submit",
+        "verify",
+    }
+    return bool(tokens & keywords)
+
+
+def local_ai_confidence_for_finding(
+    finding,
+    telemetry_summary,
+    target_profile,
+    component_profile,
+    behavioral_signals,
+):
+    score = 0
+    if telemetry_summary.get("event_count", 0) >= 6:
+        score += 1
+    if telemetry_summary.get("contains_runtime_telemetry"):
+        score += 1
+
+    rule_id = finding.get("rule_id")
+    if rule_id == "touch_target_size":
+        grab_stats = (target_profile or {}).get("grab_stats", {})
+        if grab_stats.get("attempts", 0) >= 3:
+            score += 1
+        if grab_stats.get("failures", 0) >= 2:
+            score += 1
+        if (grab_stats.get("max_distance") or 0.0) >= LARGE_FAIL_DISTANCE:
+            score += 1
+    elif rule_id in {
+        "interaction_latency_frustration",
+        "press_feedback_confirmation",
+        "dead_control_no_response",
+        "unambiguous_confirmation_for_consequential_steps",
+    }:
+        repeat_stats = (component_profile or {}).get("rapid_repeat_stats", {})
+        if repeat_stats.get("count", 0) >= 2:
+            score += 2
+        if behavioral_signals.get("rapid_repeat_sequences"):
+            score += 1
+    elif rule_id in {"target_discoverability", "visual_identifier_personalization"}:
+        click_count = telemetry_summary.get("click_count", 0)
+        if click_count >= MIN_MISSED_TAPS:
+            score += 1
+        if (component_profile or {}).get("actions", {}).get("click", 0) >= MIN_MISSED_TAPS:
+            score += 1
+        if behavioral_signals.get("focus_switch_count", 0) >= 1:
+            score += 1
+    elif rule_id in {"content_type_in_elevated_context", "unmapped_issue_flag"}:
+        if behavioral_signals.get("issue_flags"):
+            score += 2
+    elif rule_id == "physical_alignment_accuracy":
+        transform_stats = (target_profile or {}).get("transform_stats", {})
+        spatial_stats = (target_profile or {}).get("spatial_stats", {})
+        if (transform_stats.get("max_translation_step") or 0.0) >= 0.08:
+            score += 2
+        if (spatial_stats.get("max_move_delta") or 0.0) >= 0.08:
+            score += 2
+
+    if finding.get("rule_source_type") == "lens":
+        score += 1
+    if telemetry_summary.get("event_count", 0) == 0:
+        return "low"
+    if score >= 4:
+        return "high"
+    if score >= 2:
+        return "medium"
+    return "low"
+
+
+def local_ai_judgment_for_finding(
+    finding,
+    telemetry_summary,
+    target_profile,
+    component_profile,
+    behavioral_signals,
+    lens_context,
+):
+    base = interpret_finding(finding)
+    target = finding.get("target") or "this area"
+    rule_id = finding.get("rule_id")
+    low_vision_active = has_active_lens(lens_context, "low_vision_accessibility")
+    manufacturing_active = has_active_lens(lens_context, "manufacturing")
+
+    details = []
+    if rule_id == "touch_target_size":
+        grab_stats = (target_profile or {}).get("grab_stats", {})
+        attempts = grab_stats.get("attempts", 0)
+        failures = grab_stats.get("failures", 0)
+        if attempts and failures:
+            details.append(
+                "{} of {} grab attempts missed before the target stabilized, so this looks like a real precision burden rather than a one-off slip.".format(
+                    failures, attempts
+                )
+            )
+        if low_vision_active:
+            details.append(
+                "Under the low-vision lens, '{}' needs to tolerate even less precision or offer a larger hit area.".format(
+                    target
+                )
+            )
+        if manufacturing_active:
+            details.append(
+                "Under the manufacturing lens, the control is too exacting for gloved or hands-busy use."
+            )
+    elif rule_id in {"interaction_latency_frustration", "press_feedback_confirmation"}:
+        repeat_stats = (component_profile or {}).get("rapid_repeat_stats", {})
+        if repeat_stats.get("count", 0):
+            details.append(
+                "The repeated activations clustered fast enough to show the user did not trust the first press to register."
+            )
+        if manufacturing_active and looks_consequential_control(target):
+            details.append(
+                "That is especially risky in a consequential workflow, where ambiguous confirmation can advance or duplicate a real-world step."
+            )
+    elif rule_id == "target_discoverability":
+        details.append(
+            "Because the clicks landed on background content instead of a control, this reads as search behavior rather than simple motor noise."
+        )
+        if low_vision_active:
+            details.append(
+                "With the low-vision lens active, that usually means size, contrast, outline, or placement cues are not doing enough work."
+            )
+    elif rule_id == "content_type_in_elevated_context":
+        details.append(
+            "This is a structural layout problem, not a transient miss: the pattern itself puts the wrong content in the wrong XR surface."
+        )
+    elif rule_id == "unmapped_issue_flag":
+        details.append(
+            "Telemetry already marked the interaction as problematic, so the main gap is rubric coverage rather than evidence."
+        )
+    elif rule_id == "glove_compatible_target_sizing":
+        details.append(
+            "The underlying hit-target problem becomes more severe in an industrial context because the interface assumes bare-handed precision."
+        )
+    elif rule_id == "enlarged_touch_targets_for_low_vision":
+        details.append(
+            "The same misses that might be borderline for a general audience are not acceptable under a low-vision review lens."
+        )
+    elif rule_id == "visual_identifier_personalization":
+        details.append(
+            "Repeated hunt behavior suggests the UI is not giving enough outlines, zoom support, or other personalization aids to help users find controls independently."
+        )
+    elif rule_id == "high_contrast_mode_compatibility":
+        details.append(
+            "The friction pattern is consistent with accommodations like high-contrast or outline modes not preserving legibility and targeting cleanly."
+        )
+    elif rule_id == "avoid_fine_detail_dependence":
+        details.append(
+            "The control appears to depend on subtle visual detail to be understood before interaction, which is fragile for low-vision users."
+        )
+    elif rule_id == "unambiguous_confirmation_for_consequential_steps":
+        details.append(
+            "Repeated confirmation attempts on a consequential control indicate the user could not tell with confidence whether the step advanced."
+        )
+    elif rule_id == "physical_alignment_accuracy":
+        details.append(
+            "Repeated repositioning on the same overlay reads more like alignment drift than intentional object manipulation."
+        )
+
+    if telemetry_summary.get("event_count", 0) == 0:
+        details.append(
+            "This judgment is weak because the session captured no telemetry events."
+        )
+    return normalize_whitespace(" ".join([base] + details))
+
+
+def build_local_ai_summary(telemetry_summary, findings, lens_context, retrieved_lens_focus):
+    static_focus_rules = [
+        entry
+        for entry in retrieved_lens_focus
+        if entry.get("detection_method") == "static_design_review"
+    ]
+    if telemetry_summary.get("event_count", 0) == 0:
+        if static_focus_rules:
+            return (
+                "No telemetry events were captured, so the local reviewer could not judge "
+                "interaction quality. The active lens stack still surfaced {} static design "
+                "check{} that need manual visual review."
+            ).format(
+                len(static_focus_rules),
+                "" if len(static_focus_rules) == 1 else "s",
+            )
+        return "No telemetry events were captured, so the local reviewer could not judge interaction quality."
+
+    if findings:
+        top = findings[0]
+        target = top.get("target") or "unknown target"
+        summary = (
+            "{} flagged. The clearest issue was {} on {}. {}"
+        ).format(
+            count_label(len(findings), "finding"),
+            top["rule_id"],
+            target,
+            normalize_whitespace(top.get("judgment") or top.get("evidence_from_telemetry")),
+        )
+        if static_focus_rules:
+            summary += " The active lens stack also surfaced {} visual rule{} that still need manual design review.".format(
+                len(static_focus_rules),
+                "" if len(static_focus_rules) == 1 else "s",
+            )
+        return summary
+
+    if static_focus_rules:
+        return (
+            "The local reviewer did not find a telemetry-backed issue in this session, "
+            "but the active lens stack surfaced {} static design check{} that still need "
+            "manual visual review."
+        ).format(
+            len(static_focus_rules),
+            "" if len(static_focus_rules) == 1 else "s",
+        )
+    if not telemetry_summary.get("contains_runtime_telemetry"):
+        return (
+            "This session mostly captured discrete UI actions and the local reviewer did "
+            "not see enough converging friction to support a rubric finding."
+        )
+    return (
+        "Runtime telemetry was present, but the local reviewer did not find enough "
+        "converging evidence to attach a rubric issue in this session."
+    )
+
+
+def local_ai_overall_confidence(telemetry_summary, findings):
+    if telemetry_summary.get("event_count", 0) == 0:
+        return "low"
+    high_confidence_count = sum(
+        1 for finding in findings if finding.get("confidence") == "high"
+    )
+    if high_confidence_count or len(findings) >= 2:
+        return "high"
+    if telemetry_summary.get("event_count", 0) >= 6:
+        return "medium"
+    return "low"
+
+
+def build_lens_inferred_finding(
+    rules,
+    rule_id,
+    target,
+    evidence,
+    fix,
+    related=None,
+    severity=None,
+):
+    if rule_id not in rules:
+        return None
+    return make_finding(
+        rules,
+        rule_id,
+        target,
+        evidence,
+        fix,
+        related=related,
+        severity=severity,
+    )
+
+
+def infer_local_ai_lens_findings(
+    session,
+    rules,
+    telemetry_summary,
+    heuristic_findings,
+    target_profiles,
+    component_profiles,
+    behavioral_signals,
+    lens_context,
+):
+    findings = []
+    heuristic_by_rule = collections.defaultdict(list)
+    for finding in heuristic_findings:
+        heuristic_by_rule[finding.get("rule_id")].append(finding)
+
+    low_vision_active = has_active_lens(lens_context, "low_vision_accessibility")
+    manufacturing_active = has_active_lens(lens_context, "manufacturing")
+    accessibility_settings = session.get("accessibility_settings", {}) or {}
+
+    if low_vision_active:
+        for base_finding in heuristic_by_rule.get("touch_target_size", []):
+            findings.append(build_lens_inferred_finding(
+                rules,
+                "enlarged_touch_targets_for_low_vision",
+                base_finding.get("target") or "unknown",
+                "{} Under the low-vision lens, the session shows the user needed more precision than this target should demand.".format(
+                    base_finding["evidence_from_telemetry"]
+                ),
+                "Offer a larger-target mode or default larger hit areas for low-vision users, and keep the collider comfortably larger than the visual affordance on '{}'.".format(
+                    base_finding.get("target") or "this control"
+                ),
+                related=sorted(set((base_finding.get("related_rule_ids") or []) + ["touch_target_size"])),
+                severity="high",
+            ))
+        for base_finding in heuristic_by_rule.get("target_discoverability", []):
+            findings.append(build_lens_inferred_finding(
+                rules,
+                "visual_identifier_personalization",
+                base_finding.get("target") or "unknown",
+                "{} With the low-vision lens active, repeated hunting suggests outlines, zoom, or other personalization aids are not helping users locate the control.".format(
+                    base_finding["evidence_from_telemetry"]
+                ),
+                "Add optional outlines, zoom, stronger focus indicators, or other visual identifiers so low-vision users can locate the intended control in '{}' without trial-and-error tapping.".format(
+                    base_finding.get("target") or "this region"
+                ),
+                related=sorted(set((base_finding.get("related_rule_ids") or []) + ["target_discoverability"])),
+                severity="medium",
+            ))
+        if any(
+            is_truthy(accessibility_settings.get(key))
+            for key in ("high_contrast_mode", "relumino_outline")
+        ):
+            for base_finding in (
+                heuristic_by_rule.get("touch_target_size", [])
+                + heuristic_by_rule.get("target_discoverability", [])
+            ):
+                findings.append(build_lens_inferred_finding(
+                    rules,
+                    "high_contrast_mode_compatibility",
+                    base_finding.get("target") or "unknown",
+                    "{} Accessibility settings indicate a contrast or outline accommodation was relevant in this session, and the observed friction suggests the UI may not stay cleanly legible in that mode.".format(
+                        base_finding["evidence_from_telemetry"]
+                    ),
+                    "Verify '{}' in High Contrast Fonts and Relumino-style outline conditions, and strengthen the element's contrast, outlines, and feedback so the accommodation mode remains fully usable.".format(
+                        base_finding.get("target") or "this control"
+                    ),
+                    related=sorted(set((base_finding.get("related_rule_ids") or []) + [base_finding["rule_id"]])),
+                    severity="medium",
+                ))
+
+    if manufacturing_active:
+        for base_finding in heuristic_by_rule.get("touch_target_size", []):
+            findings.append(build_lens_inferred_finding(
+                rules,
+                "glove_compatible_target_sizing",
+                base_finding.get("target") or "unknown",
+                "{} Under the manufacturing lens, the interaction still assumes too much fine precision for gloved or hands-busy use.".format(
+                    base_finding["evidence_from_telemetry"]
+                ),
+                "Increase the hit area and spacing on '{}' beyond the baseline XR minimum, and bias the control toward easy one-handed acquisition rather than precise finger placement.".format(
+                    base_finding.get("target") or "this control"
+                ),
+                related=sorted(set((base_finding.get("related_rule_ids") or []) + ["touch_target_size"])),
+                severity="high",
+            ))
+
+        for base_finding in heuristic_by_rule.get("interaction_latency_frustration", []):
+            target = base_finding.get("target") or "unknown"
+            if not looks_consequential_control(target):
+                continue
+            findings.append(build_lens_inferred_finding(
+                rules,
+                "unambiguous_confirmation_for_consequential_steps",
+                target,
+                "{} In a manufacturing workflow, repeated activation on '{}' looks like uncertainty about whether a consequential step actually registered.".format(
+                    base_finding["evidence_from_telemetry"],
+                    target,
+                ),
+                "Give '{}' a large, unmistakable success confirmation with state change, audible cue, and persistent completion marker so the worker never has to guess whether the step advanced.".format(
+                    target
+                ),
+                related=sorted(set((base_finding.get("related_rule_ids") or []) + ["interaction_latency_frustration"])),
+                severity="high",
+            ))
+
+        for target_profile in target_profiles.values():
+            by_type = target_profile.get("by_type", {})
+            transform_count = sum(
+                by_type.get(event_type, 0)
+                for event_type in ("transform_change", "spatial_transform", "rotation_change")
+            )
+            transform_stats = target_profile.get("transform_stats", {})
+            spatial_stats = target_profile.get("spatial_stats", {})
+            if transform_count < 4:
+                continue
+            if (
+                (transform_stats.get("max_translation_step") or 0.0) < 0.08
+                and (spatial_stats.get("max_move_delta") or 0.0) < 0.08
+            ):
+                continue
+            target = target_profile.get("target") or "unknown"
+            findings.append(build_lens_inferred_finding(
+                rules,
+                "physical_alignment_accuracy",
+                target,
+                "{} transform updates were logged on '{}', with max translation step {:.2f} and max spatial move {:.2f}; that amount of repeated repositioning looks like alignment correction rather than a single intentional placement.".format(
+                    transform_count,
+                    target,
+                    transform_stats.get("max_translation_step") or 0.0,
+                    spatial_stats.get("max_move_delta") or 0.0,
+                ),
+                "Stabilize the anchoring/alignment model for '{}', reduce drift, and add a clearer lock-on state so users do not need repeated corrective nudges to trust overlay placement.".format(
+                    target
+                ),
+                related=[],
+                severity="high",
+            ))
+
+    return [finding for finding in findings if finding]
+
+
+def run_local_ai_analysis(
+    session,
+    rules,
+    telemetry_summary,
+    heuristic_findings,
+    lens_context,
+    retrieved_lens_focus,
+):
+    events = session.get("events", [])
+    target_profiles = {
+        item["target"]: item for item in build_target_profiles(events)
+    }
+    component_profiles = {
+        item["component"]: item for item in build_component_profiles(events)
+    }
+    behavioral_signals = build_behavioral_signals(events)
+
+    lens_findings = infer_local_ai_lens_findings(
+        session,
+        rules,
+        telemetry_summary,
+        heuristic_findings,
+        target_profiles,
+        component_profiles,
+        behavioral_signals,
+        lens_context,
+    )
+    merged_findings = merge_findings(heuristic_findings, lens_findings)
+    reviewed_findings = []
+    for finding in merged_findings:
+        reviewed = dict(finding)
+        target_profile = target_profiles.get(reviewed.get("target"))
+        component_profile = finding_component_profile(reviewed, component_profiles)
+        reviewed["analysis_method"] = "local_ai"
+        reviewed["confidence"] = local_ai_confidence_for_finding(
+            reviewed,
+            telemetry_summary,
+            target_profile,
+            component_profile,
+            behavioral_signals,
+        )
+        reviewed["judgment"] = local_ai_judgment_for_finding(
+            reviewed,
+            telemetry_summary,
+            target_profile,
+            component_profile,
+            behavioral_signals,
+            lens_context,
+        )
+        reviewed_findings.append(reviewed)
+
+    reviewed_findings.sort(key=lambda finding: severity_rank(finding.get("severity")))
+    return {
+        "status": "used",
+        "reason": "Local reviewer synthesized telemetry, rubric heuristics, and active specialization lenses.",
+        "provider": "local",
+        "model": DEFAULT_LOCAL_AI_MODEL,
+        "overall_confidence": local_ai_overall_confidence(
+            telemetry_summary,
+            reviewed_findings,
+        ),
+        "session_summary": build_local_ai_summary(
+            telemetry_summary,
+            reviewed_findings,
+            lens_context,
+            retrieved_lens_focus,
+        ),
+        "findings": reviewed_findings,
+        "sampled_event_count": len(events),
+        "total_event_count": len(events),
+    }
+
+
 def extract_chat_completion_text(response_json):
     choices = response_json.get("choices") or []
     if not choices:
@@ -1227,7 +1785,7 @@ def normalize_ai_findings(raw_response, rules):
     }
 
 
-def run_ai_analysis(
+def run_openai_analysis(
     session,
     rules,
     telemetry_summary,
@@ -1240,7 +1798,7 @@ def run_ai_analysis(
     if not api_key:
         return {
             "status": "not_configured",
-            "reason": "Set {} to enable AI analysis.".format(args.ai_api_key_env),
+            "reason": "OpenAI provider was requested but no API key is configured.",
             "model": args.ai_model,
             "provider": "openai",
         }
@@ -1314,6 +1872,38 @@ def run_ai_analysis(
     return normalized
 
 
+def run_ai_analysis(
+    session,
+    rules,
+    telemetry_summary,
+    heuristic_findings,
+    args,
+    lens_context,
+    retrieved_lens_focus,
+):
+    provider = normalize_ai_provider(getattr(args, "ai_provider", DEFAULT_AI_PROVIDER))
+    if provider == "openai":
+        openai_result = run_openai_analysis(
+            session,
+            rules,
+            telemetry_summary,
+            heuristic_findings,
+            args,
+            lens_context,
+            retrieved_lens_focus,
+        )
+        if openai_result.get("status") == "used":
+            return openai_result
+    return run_local_ai_analysis(
+        session,
+        rules,
+        telemetry_summary,
+        heuristic_findings,
+        lens_context,
+        retrieved_lens_focus,
+    )
+
+
 def merge_findings(*finding_lists):
     merged = {}
     order = []
@@ -1350,9 +1940,10 @@ def build_fallback_session_summary(telemetry_summary, findings):
         evidence = normalize_whitespace(
             top.get("judgment") or top.get("evidence_from_telemetry")
         )
+        verb = "was" if len(findings) == 1 else "were"
         return (
-            "{} finding(s) were flagged. The clearest issue was {} on {}. {}"
-        ).format(len(findings), top["rule_id"], target, evidence)
+            "{} {} flagged. The clearest issue was {} on {}. {}"
+        ).format(count_label(len(findings), "finding"), verb, top["rule_id"], target, evidence)
     if not telemetry_summary.get("contains_runtime_telemetry"):
         return (
             "This session mostly captured discrete UI actions and did not show enough "
@@ -1408,7 +1999,7 @@ def interpret_finding(finding):
 
 def render_user_report(report):
     report_json = json_for_html(report)
-    return """<!doctype html>
+    return ("""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -1457,8 +2048,8 @@ def render_user_report(report):
       margin: 0;
       font-family: "Segoe UI", Arial, sans-serif;
       background:
-        radial-gradient(circle at 85%% -5%%, rgba(0, 240, 255, 0.08), transparent 34rem),
-        radial-gradient(circle at 5%% 20%%, rgba(123, 97, 255, 0.08), transparent 34rem),
+        radial-gradient(circle at 85% -5%, rgba(0, 240, 255, 0.08), transparent 34rem),
+        radial-gradient(circle at 5% 20%, rgba(123, 97, 255, 0.08), transparent 34rem),
         var(--bg);
       color: var(--ink);
       line-height: 1.5;
@@ -1484,7 +2075,7 @@ def render_user_report(report):
       font-size: 34px;
       font-weight: 800;
       letter-spacing: 0.5px;
-      background: linear-gradient(100deg, var(--electric-cyan), var(--lavender) 45%%, var(--soft-pink));
+      background: linear-gradient(100deg, var(--electric-cyan), var(--lavender) 45%, var(--soft-pink));
       -webkit-background-clip: text;
       background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -1540,6 +2131,13 @@ def render_user_report(report):
       font-weight: 800;
       margin-top: 6px;
       color: var(--electric-cyan);
+      overflow-wrap: anywhere;
+    }
+
+    .summary-value-text {
+      font-size: 16px;
+      line-height: 1.35;
+      letter-spacing: 0.02em;
     }
 
     .tab-bar {
@@ -1661,6 +2259,17 @@ def render_user_report(report):
       color: var(--lilac);
       text-transform: uppercase;
       box-shadow: var(--nm-raised-sm);
+      max-width: 100%;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      text-align: left;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
     }
 
     .severity-high .pill {
@@ -1791,7 +2400,7 @@ def render_user_report(report):
     }
 
     .modal-card {
-      width: min(760px, 100%%);
+      width: min(760px, 100%);
       padding: 24px;
     }
 
@@ -1861,7 +2470,7 @@ def render_user_report(report):
   </div>
 
   <script>
-    const report = %s;
+    const report = __XR_REPORT_JSON__;
     const severityRank = { high: 0, medium: 1, low: 2 };
     const AUTO_REFRESH_INTERVAL_MS = 5000;
     let activeTab = "latest";
@@ -1947,12 +2556,24 @@ def render_user_report(report):
       return sessions.length ? sessions[sessions.length - 1] : null;
     }
 
+    function countLabel(count, singular, plural) {
+      const label = count === 1 ? singular : (plural || singular + "s");
+      return String(count) + " " + label;
+    }
+
     function getOccurrences() {
       const sessions = getOrderedSessions();
       const items = [];
       sessions.forEach((session, sessionIndex) => {
         (session.findings || []).forEach((finding, findingIndex) => {
+          const occurrenceKey = [
+            session.session_id || session.file || "session",
+            finding.review_key || finding.rule_id || "finding",
+            String(findingIndex),
+          ].join("::");
           items.push(Object.assign({}, finding, {
+            key: occurrenceKey,
+            occurrence_key: occurrenceKey,
             session_file: session.file,
             session_id: session.session_id,
             app: session.app,
@@ -1993,12 +2614,10 @@ def render_user_report(report):
     }
 
     function getGroupedItems() {
-      const grouped = new Map();
-      getOccurrences().forEach((occurrence) => {
-        const key = occurrence.review_key;
-        if (!grouped.has(key)) {
-          grouped.set(key, {
-            key: key,
+      return getOccurrences()
+        .map((occurrence) => {
+          return {
+            key: occurrence.occurrence_key,
             rule_id: occurrence.rule_id,
             rule_text: occurrence.rule_text,
             interpretation: occurrence.interpretation,
@@ -2009,31 +2628,18 @@ def render_user_report(report):
             lens_name: occurrence.lens_name || "",
             rule_source_type: occurrence.rule_source_type || "base",
             related_rule_ids: occurrence.related_rule_ids || [],
-            occurrences: [],
-          });
-        }
-        const entry = grouped.get(key);
-        if (compareSeverity(occurrence.severity, entry.severity) < 0) {
-          entry.severity = occurrence.severity;
-        }
-        entry.occurrences.push(occurrence);
-      });
-
-      return Array.from(grouped.values())
-        .map((entry) => {
-          entry.occurrences.sort((left, right) => {
-            return (right.started_at_epoch_ms || right.sessionIndex) - (left.started_at_epoch_ms || left.sessionIndex);
-          });
-          entry.session_count = new Set(entry.occurrences.map((item) => item.session_file)).size;
-          entry.latest_occurrence = entry.occurrences[0] || null;
-          return entry;
+            occurrences: [occurrence],
+            session_count: 1,
+            latest_occurrence: occurrence,
+          };
         })
         .sort((left, right) => {
           const severityDelta = compareSeverity(left.severity, right.severity);
           if (severityDelta !== 0) {
             return severityDelta;
           }
-          return right.occurrences.length - left.occurrences.length;
+          return (right.latest_occurrence.started_at_epoch_ms || right.latest_occurrence.sessionIndex)
+            - (left.latest_occurrence.started_at_epoch_ms || left.latest_occurrence.sessionIndex);
         });
     }
 
@@ -2064,23 +2670,95 @@ def render_user_report(report):
       return escapeHtml((session.app || "unknown app") + " / " + (session.scene || "unknown scene"));
     }
 
+    function formatEpochMs(ms) {
+      const n = Number(ms);
+      if (!n || Number.isNaN(n)) {
+        return "";
+      }
+      const d = new Date(n);
+      if (Number.isNaN(d.getTime())) {
+        return "";
+      }
+      return d.toLocaleString(undefined, {
+        year: "numeric", month: "short", day: "numeric",
+        hour: "numeric", minute: "2-digit"
+      });
+    }
+
+    function epochFromSessionFile(file) {
+      const match = /session_([0-9]{10,})/.exec(file || "");
+      return match ? Number(match[1]) : null;
+    }
+
+    function sessionLabel(session) {
+      if (!session) {
+        return "Session";
+      }
+      const label = formatEpochMs(session.started_at_epoch_ms || epochFromSessionFile(session.file));
+      return label || session.file || "Session";
+    }
+
+    function sessionLabelFromFile(file) {
+      return formatEpochMs(epochFromSessionFile(file)) || file || "unknown session";
+    }
+
+    function humanizeToken(text) {
+      if (!text) {
+        return "";
+      }
+      return String(text)
+        .replace(/[_-]+/g, " ")
+        .split(" ")
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+    }
+
+    function evidenceLead(evidence) {
+      if (!evidence) {
+        return "";
+      }
+      const match = /([0-9][0-9.,]*) ([A-Za-z]+)/.exec(String(evidence));
+      if (match) {
+        return match[1] + " " + match[2].toLowerCase();
+      }
+      return "";
+    }
+
+    function findingTitle(item) {
+      const base = humanizeToken(item.rule_id) +
+        (item.target ? " — " + humanizeToken(item.target) : "");
+      const count = item.occurrences ? item.occurrences.length : 0;
+      if (count > 1) {
+        return base + " (" + count + " occurrences)";
+      }
+      const lead = evidenceLead(
+        item.latest_occurrence && item.latest_occurrence.evidence_from_telemetry
+      );
+      return lead ? base + " — " + lead : base;
+    }
+
     function engineLabel(engine) {
-      const mode = (engine && (engine.mode_used || engine.mode_requested) || "heuristic").toUpperCase();
+      const modeUsed = engine && (engine.mode_used || engine.mode_requested) || "heuristic";
+      const provider = engine && engine.ai_provider || "";
       const model = engine && engine.ai_model ? " / " + engine.ai_model : "";
-      if ((engine && engine.mode_used) === "heuristic") {
+      if (modeUsed === "heuristic") {
         return "HEURISTIC";
       }
-      return mode + model;
+      if (provider === "local" || modeUsed === "local_ai") {
+        return "LOCAL AI" + model;
+      }
+      return String(modeUsed).replace(/_/g, " ").toUpperCase() + model;
     }
 
     function analysisStatusLine(engine) {
       if (!engine) {
         return "Heuristic analysis only.";
       }
+      if (engine.ai_provider === "local" || engine.mode_used === "local_ai") {
+        return "Local AI review synthesized from telemetry, rubric heuristics, and active specialization lenses.";
+      }
       if (engine.mode_used === "heuristic") {
-        if (engine.ai_status === "not_configured") {
-          return "Heuristic fallback because " + (engine.reason || "AI is not configured") + ".";
-        }
         if (engine.ai_status === "request_failed" || engine.ai_status === "response_invalid") {
           return "Heuristic fallback because " + (engine.reason || "the AI pass failed") + ".";
         }
@@ -2110,9 +2788,9 @@ def render_user_report(report):
       if (!names.length) {
         return "<span class='meta'>None</span>";
       }
-      return names.map((name) => {
+      return "<span class='tag-row'>" + names.map((name) => {
         return "<span class='pill'>" + escapeHtml(name) + "</span>";
-      }).join(" ");
+      }).join("") + "</span>";
     }
 
     function renderLensFocusRules(focusRules) {
@@ -2160,7 +2838,7 @@ def render_user_report(report):
       const engine = report.analysis_engine || {};
       const cards = [
         ["Sessions", String(sessions.length)],
-        ["Open Items", String(statusCounts.open)],
+        ["Open Findings", String(statusCounts.open)],
         ["Completed", String(statusCounts.completed)],
         ["Not Important", String(statusCounts.ignored)],
         ["Disabled Rules", String((report.disabled_rule_ids || []).length)],
@@ -2169,12 +2847,14 @@ def render_user_report(report):
       ];
       document.getElementById("hero-copy").innerHTML =
         "Generated " + escapeHtml(report.generated_at || "") +
-        ". Latest session: <strong>" + escapeHtml(latest ? latest.file : "none") + "</strong>. " +
+        ". Latest session: <strong>" + escapeHtml(latest ? sessionLabel(latest) : "none") + "</strong>. " +
         "Rubric: <strong>" + escapeHtml(report.rubric || "unknown") + "</strong>. " +
         "Analysis: <strong>" + escapeHtml(analysisStatusLine(engine)) + "</strong>";
       document.getElementById("hero-stats").innerHTML = cards.map((card) => {
+        const isText = card[1] === "" || Number.isNaN(Number(card[1]));
+        const valueClass = "summary-value" + (isText ? " summary-value-text" : "");
         return "<article class='summary-card'><div class='summary-label'>" +
-          escapeHtml(card[0]) + "</div><div class='summary-value'>" +
+          escapeHtml(card[0]) + "</div><div class='" + valueClass + "'>" +
           escapeHtml(card[1]) + "</div></article>";
       }).join("");
     }
@@ -2223,6 +2903,11 @@ def render_user_report(report):
 
     function renderGroupedCard(item, status) {
       const latestOccurrence = item.latest_occurrence;
+      const scopeLine = latestOccurrence
+        ? countLabel(item.occurrences.length, "finding") + " | " +
+          escapeHtml(sessionLabelFromFile(latestOccurrence.session_file)) + " | " +
+          escapeHtml((latestOccurrence.app || "unknown app") + " / " + (latestOccurrence.scene || "unknown scene"))
+        : countLabel(item.occurrences.length, "finding");
       const lensLine = item.lens_name
         ? "<div class='eyebrow'>" + escapeHtml(item.lens_name + " lens") + "</div>"
         : "";
@@ -2231,7 +2916,7 @@ def render_user_report(report):
         : "";
       const analysisMeta = latestOccurrence && (latestOccurrence.analysis_method || latestOccurrence.confidence)
         ? "<div class='eyebrow'>" + escapeHtml([
-            latestOccurrence.analysis_method ? latestOccurrence.analysis_method.toUpperCase() : "",
+            latestOccurrence.analysis_method ? String(latestOccurrence.analysis_method).replace(/_/g, " ").toUpperCase() : "",
             latestOccurrence.confidence ? latestOccurrence.confidence.toUpperCase() + " confidence" : ""
           ].filter(Boolean).join(" | ")) + "</div>"
         : "";
@@ -2240,7 +2925,7 @@ def render_user_report(report):
         : "";
       const occurrences = item.occurrences.slice(0, 4).map((occurrence) => {
         return "<div class='occurrence-item'>" +
-          "<div class='occurrence-meta'>" + escapeHtml(occurrence.session_file) + " | " +
+          "<div class='occurrence-meta'>" + escapeHtml(sessionLabelFromFile(occurrence.session_file)) + " | " +
           escapeHtml((occurrence.app || "unknown app") + " / " + (occurrence.scene || "unknown scene")) + "</div>" +
           "<div>" + escapeHtml(occurrence.evidence_from_telemetry) + "</div>" +
         "</div>";
@@ -2248,10 +2933,10 @@ def render_user_report(report):
       return "<article class='finding-card severity-" + escapeHtml(item.severity) + "'>" +
         "<div class='finding-header'>" +
           "<div>" +
-            "<div class='eyebrow'>" + escapeHtml(item.session_count + " sessions | " + item.occurrences.length + " occurrences") + "</div>" +
+            "<div class='eyebrow'>" + scopeLine + "</div>" +
             lensLine +
             analysisMeta +
-            "<h3>" + escapeHtml(item.rule_id + " on " + (item.target || "unknown")) + "</h3>" +
+            "<h3>" + escapeHtml(findingTitle(item)) + "</h3>" +
           "</div>" +
           "<span class='pill'>" + escapeHtml(item.severity.toUpperCase()) + "</span>" +
         "</div>" +
@@ -2267,12 +2952,13 @@ def render_user_report(report):
     }
 
     function renderLatestFindingCard(item, session) {
-      const status = statusForKey(item.review_key);
+      const key = item.occurrence_key || item.review_key;
+      const status = statusForKey(key);
       if (status !== "open") {
         return "";
       }
       const aggregatedItem = {
-        key: item.review_key,
+        key: key,
         rule_id: item.rule_id,
         rule_text: item.rule_text,
         interpretation: item.interpretation,
@@ -2303,13 +2989,15 @@ def render_user_report(report):
       const components = (latest.telemetry_summary && latest.telemetry_summary.components || []).join(", ") || "None";
       const latestEngine = latest.analysis_engine || report.analysis_engine || {};
       const latestLensContext = latest.lens_context || {};
+      const defaultLensPreferences = report.lens_preferences || {};
       const disabledRules = (report.disabled_rule_ids || []).length
         ? "<div class='mini-card'><strong>Disabled in rubric:</strong> " + escapeHtml(report.disabled_rule_ids.join(", ")) + "</div>"
         : "";
       panel.innerHTML =
         "<section class='surface section-stack'>" +
           "<div class='session-header'>" +
-            "<div><div class='eyebrow'>Latest session</div><h2>" + escapeHtml(latest.file) + "</h2></div>" +
+            "<div><div class='eyebrow'>Latest session</div><h2>" + escapeHtml(sessionLabel(latest)) + "</h2>" +
+              "<div class='meta'>" + escapeHtml(latest.file) + "</div></div>" +
             "<div class='meta'>Session ID: " + escapeHtml(latest.session_id || "unknown") + "</div>" +
           "</div>" +
           "<div class='card-grid'>" +
@@ -2319,15 +3007,19 @@ def render_user_report(report):
             "<div class='mini-card'><strong>Components</strong><div class='meta'>" + escapeHtml(components) + "</div></div>" +
             "<div class='mini-card'><strong>Engine</strong><div class='meta'>" + escapeHtml(analysisStatusLine(latestEngine)) + "</div></div>" +
             "<div class='mini-card'><strong>Active Lenses</strong><div class='meta'>" + renderLensTags(latestLensContext.current_active_lenses || []) + "</div></div>" +
+            "<div class='mini-card'><strong>Default Session Lenses</strong><div class='meta'>" + renderLensTags(defaultLensPreferences.default_active_lenses || []) + "</div></div>" +
           "</div>" +
           (latest.researcher_summary
             ? "<div class='mini-card'><strong>Researcher Readout</strong><div class='meta'>" + escapeHtml(latest.researcher_summary) + "</div></div>"
+            : "") +
+          (defaultLensPreferences.path
+            ? "<div class='status-note'>Session defaults are loaded at analysis start from " + escapeHtml(defaultLensPreferences.path) + ".</div>"
             : "") +
           ((latestLensContext.live_toggle_history && latestLensContext.live_toggle_history.length)
             ? "<div class='mini-card'><strong>Live Lens Changes</strong>" + renderLensHistory(latestLensContext) + "</div>"
             : "") +
           disabledRules +
-          (hiddenCount > 0 ? "<div class='status-note'>" + escapeHtml(String(hiddenCount)) + " latest-session item(s) are already in Completed or Not Important.</div>" : "") +
+          (hiddenCount > 0 ? "<div class='status-note'>" + escapeHtml(countLabel(hiddenCount, "latest-session finding")) + " already " + (hiddenCount === 1 ? "is" : "are") + " in Completed or Not Important.</div>" : "") +
         "</section>" +
         renderLensFocusRules(latestLensContext.retrieved_focus_rules || []) +
         (openLatestFindings.length
@@ -2343,8 +3035,8 @@ def render_user_report(report):
         ).join(", ");
         return "<article class='session-card'>" +
           "<div class='session-header'>" +
-            "<div><h3>" + escapeHtml(session.file) + "</h3><div class='meta'>" + formatSessionMeta(session) + "</div></div>" +
-            "<span class='pill'>" + escapeHtml(String(findingCount)) + " findings</span>" +
+            "<div><h3>" + escapeHtml(sessionLabel(session)) + "</h3><div class='meta'>" + escapeHtml(session.file) + " · " + formatSessionMeta(session) + "</div></div>" +
+            "<span class='pill'>" + escapeHtml(countLabel(findingCount, "finding")) + "</span>" +
           "</div>" +
           "<p><strong>Telemetry:</strong> " + escapeHtml(telemetrySummaryLine(session.telemetry_summary)) + "</p>" +
           (activeLensNames
@@ -2362,22 +3054,20 @@ def render_user_report(report):
       const groupedItems = getGroupedItems();
       const openItems = groupedItems.filter((item) => statusForKey(item.key) === "open");
       const summaryNote = openItems.length
-        ? "<div class='status-note'>" + escapeHtml(String(openItems.length)) + " open cross-session item(s) need review.</div>"
-        : "<div class='ok'>No open items remain across the analyzed sessions.</div>";
+        ? "<div class='status-note'>" + escapeHtml(countLabel(openItems.length, "open finding")) + " need review across analyzed sessions.</div>"
+        : "<div class='ok'>No open findings remain across the analyzed sessions.</div>";
       panel.innerHTML =
-        "<div class='two-column'>" +
-          "<section class='surface section-stack'>" +
-            "<div><div class='eyebrow'>All sessions backlog</div><h2>Open Cross-Session Findings</h2></div>" +
-            summaryNote +
-            (openItems.length
-              ? "<div class='section-stack'>" + openItems.map((item) => renderGroupedCard(item, "open")).join("") + "</div>"
-              : "") +
-          "</section>" +
-          "<section class='surface section-stack'>" +
-            "<div><div class='eyebrow'>Session history</div><h2>Analyzed Sessions</h2></div>" +
-            "<div class='session-history'>" + renderSessionHistory() + "</div>" +
-          "</section>" +
-        "</div>";
+        "<section class='surface section-stack'>" +
+          "<div><div class='eyebrow'>All sessions backlog</div><h2>Open Findings</h2></div>" +
+          summaryNote +
+          (openItems.length
+            ? "<div class='section-stack'>" + openItems.map((item) => renderGroupedCard(item, "open")).join("") + "</div>"
+            : "") +
+        "</section>" +
+        "<section class='surface section-stack'>" +
+          "<div><div class='eyebrow'>Session history</div><h2>Analyzed Sessions</h2></div>" +
+          "<div class='session-history'>" + renderSessionHistory() + "</div>" +
+        "</section>";
     }
 
     function renderReviewSection(items, emptyText, bucket) {
@@ -2517,7 +3207,7 @@ def render_user_report(report):
   </script>
 </body>
 </html>
-""" % report_json
+""").replace("__XR_REPORT_JSON__", report_json)
 
 
 # --------------------------------------------------------------------------- #
@@ -2633,10 +3323,7 @@ def detect_ui_issue_flags(session, rules):
         evidence = (
             "ui_interaction on '{}' at t={:.2f}s raised issue_flag='{}'.".format(
                 component, e["t"], flag))
-        fix = (
-            "Move scrollable primary content out of the elevated/orbiter '{}' into a "
-            "standard anchored panel; keep only controls in elevated elements per platform "
-            "convention.".format(component))
+        fix = suggested_fix_for_issue_flag(flag, component)
         findings.append(make_finding(
             rules, rule_id, component, evidence, fix))
     return findings
@@ -2773,6 +3460,7 @@ def analyze_with_heuristics(session, rules):
 
 def analyze_session(session, base_rules, lens_registry, telemetry_summary, args):
     mode_requested = normalize_analysis_mode(args.analysis_mode)
+    ai_provider = normalize_ai_provider(getattr(args, "ai_provider", DEFAULT_AI_PROVIDER))
     requested_lens_ids = normalize_requested_lens_ids(args.lens, lens_registry)
     lens_context = extract_session_lens_context(session, requested_lens_ids, lens_registry)
     heuristic_findings = analyze_with_heuristics(session, base_rules)
@@ -2795,8 +3483,8 @@ def analyze_session(session, base_rules, lens_registry, telemetry_summary, args)
     ai_result = {
         "status": "disabled",
         "reason": "Heuristic mode was requested.",
-        "provider": "openai",
-        "model": args.ai_model,
+        "provider": ai_provider,
+        "model": configured_ai_model(ai_provider, args),
     }
     findings = heuristic_findings
     mode_used = "heuristic"
@@ -2813,7 +3501,7 @@ def analyze_session(session, base_rules, lens_registry, telemetry_summary, args)
         )
         if ai_result.get("status") == "used":
             findings = merge_findings(ai_result.get("findings", []), issue_flag_findings)
-            mode_used = mode_requested
+            mode_used = "local_ai" if ai_result.get("provider") == "local" else "ai"
         else:
             findings = heuristic_findings
 
@@ -2897,14 +3585,24 @@ def parse_args():
         default=os.environ.get("XR_ANALYSIS_MODE", DEFAULT_ANALYSIS_MODE),
         choices=("heuristic", "ai", "hybrid"),
         help=(
-            "Use heuristic-only analysis, AI-only analysis, or hybrid mode "
+            "Use heuristic-only analysis, AI-assisted analysis, or hybrid mode "
             "(default: %(default)s)."
+        ),
+    )
+    parser.add_argument(
+        "--ai-provider",
+        default=os.environ.get("XR_AI_PROVIDER", DEFAULT_AI_PROVIDER),
+        choices=("local", "openai"),
+        help=(
+            "Reviewer provider to use when analysis mode includes AI. "
+            "The default local reviewer runs entirely in-process and does not "
+            "require an API key."
         ),
     )
     parser.add_argument(
         "--ai-model",
         default=DEFAULT_AI_MODEL,
-        help="Model name used for the AI pass (default: %(default)s).",
+        help="Model name used when --ai-provider openai (default: %(default)s).",
     )
     parser.add_argument(
         "--ai-api-key-env",
@@ -2940,6 +3638,7 @@ def parse_args():
 def main():
     args = parse_args()
     lens_registry = load_lens_registry()
+    lens_preferences = load_lens_preferences(lens_registry)
     if args.list_lenses:
         print("Available specialization lenses:")
         for lens in build_available_lens_summaries(lens_registry):
@@ -2951,6 +3650,8 @@ def main():
                 )
             )
         return
+    if not args.lens:
+        args.lens = list(lens_preferences["default_active_lenses"])
     try:
         rubric_path = find_rubric_path()
     except FileNotFoundError as exc:
@@ -2981,12 +3682,17 @@ def main():
         "python_executable": sys.executable,
         "rules_manager_path": display_path(RULES_MANAGER_PATH),
         "available_lenses": build_available_lens_summaries(lens_registry),
+        "lens_preferences": {
+            "path": display_path(lens_preferences["path"]),
+            "default_active_lenses": lens_preferences["default_active_lenses"],
+            "default_active_lens_names": lens_preferences["default_active_lens_names"],
+        },
         "analysis_engine": {
             "mode_requested": normalize_analysis_mode(args.analysis_mode),
             "mode_used": "heuristic",
             "ai_status": "disabled",
-            "ai_provider": "openai",
-            "ai_model": args.ai_model,
+            "ai_provider": normalize_ai_provider(args.ai_provider),
+            "ai_model": configured_ai_model(args.ai_provider, args),
         },
         "sessions": []
     }
@@ -3040,7 +3746,11 @@ def main():
         print("  analysis:  {}".format(
             analysis_engine.get("mode_used", "heuristic").upper()))
         print("  summary:   {}".format(session_summary))
-        if analysis_engine.get("reason") and analysis_engine.get("mode_used") == "heuristic":
+        if (
+            analysis_engine.get("reason")
+            and analysis_engine.get("mode_used") == "heuristic"
+            and analysis_engine.get("ai_status") in {"request_failed", "response_invalid"}
+        ):
             print("  note:      {}".format(analysis_engine["reason"]))
         if lens_context.get("retrieved_focus_rules"):
             print("  lens focus:")
@@ -3064,14 +3774,16 @@ def main():
 
     session_engines = [session["analysis_engine"] for session in report["sessions"]]
     if session_engines:
-        used_ai = any(engine.get("mode_used") in {"ai", "hybrid"} for engine in session_engines)
+        used_ai = any(engine.get("mode_used") in {"ai", "hybrid", "local_ai"} for engine in session_engines)
         first_engine = session_engines[0]
         report["analysis_engine"]["mode_used"] = (
-            normalize_analysis_mode(args.analysis_mode) if used_ai else "heuristic"
+            first_engine.get("mode_used") if used_ai else "heuristic"
         )
         report["analysis_engine"]["ai_status"] = (
             "used" if used_ai else first_engine.get("ai_status")
         )
+        report["analysis_engine"]["ai_provider"] = first_engine.get("ai_provider")
+        report["analysis_engine"]["ai_model"] = first_engine.get("ai_model")
         if first_engine.get("reason"):
             report["analysis_engine"]["reason"] = first_engine["reason"]
         if first_engine.get("error"):

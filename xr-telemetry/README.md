@@ -88,13 +88,19 @@ Current lens ids:
 - `animator`
 - `low_vision_accessibility`
 
-To enable the AI judgment pass, set an API key first:
+Persistent default lenses live in:
 
-```powershell
-$env:OPENAI_API_KEY="your_api_key_here"
+```text
+hci_for_glasses/lens_preferences.json
 ```
 
-Then run the analyzer normally, or force a mode explicitly:
+The analyzer reads that file at the beginning of each session analysis. The repo default is:
+
+- `low_vision_accessibility`
+- `manufacturing` (construction / industrial background)
+
+The analyzer now runs a local AI reviewer by default, so no API key is required.
+Run it normally, or force a mode explicitly:
 
 ```powershell
 C:\Users\Erin Mitt\AppData\Local\Python\bin\python.exe hci_for_glasses\analyze_sessions.py --input-dir hci_for_glasses\device_sessions --analysis-mode hybrid
@@ -106,12 +112,14 @@ To focus analysis on one or more specialization lenses for that run:
 C:\Users\Erin Mitt\AppData\Local\Python\bin\python.exe hci_for_glasses\analyze_sessions.py --input-dir hci_for_glasses\device_sessions --lens medical --lens low_vision_accessibility
 ```
 
+If you pass `--lens`, it overrides the defaults from `lens_preferences.json` for that run.
+
 What the AI layer adds:
 
 - reads multi-signal telemetry instead of only fixed thresholds
 - writes a `researcher_summary` per session
 - lets severity be judged in context instead of always using the rubric default
-- falls back to heuristic-only analysis automatically if `OPENAI_API_KEY` is not set or the API call fails
+- uses a local reviewer by default and can still be pointed at `--ai-provider openai` if you explicitly want a remote model
 
 ## Auto-watch one emulator session
 
@@ -128,7 +136,7 @@ To preselect specialization lenses for that watcher run:
 C:\Users\Erin Mitt\AppData\Local\Python\bin\python.exe hci_for_glasses\watch_emulator_session.py --lens medical --lens manufacturing
 ```
 
-If `OPENAI_API_KEY` is present in the same PowerShell session, the watcher-triggered analyses inherit it automatically.
+The watcher inherits the analyzer defaults, so it uses the local reviewer unless you explicitly switch providers.
 
 What it does:
 
@@ -145,14 +153,8 @@ What it does:
 
 Review actions in the dashboard:
 
-- `Mark Completed` hides a finding from the open backlog and moves it into the Completed tab
-- `Not Important` hides a finding from the open backlog and shows a command that can disable that rule in the rubric JSON for future analyses
-
-Live lens toggles:
-
-- the sample app now includes `Specialization Lenses` controls in the main content flow
-- toggling a lens while the session is running writes an `analysis_lens_change` event and updates session metadata
-- the analyzer uses those recorded lens changes as part of its local retrieval step, so the final report reflects which lens contexts were active during the session
+- `Mark Completed` now applies to one individual finding card and moves that task into the Completed tab
+- `Not Important` now applies to one individual finding card and shows a command that can disable that rule in the rubric JSON for future analyses
 
 To disable a rule directly from PowerShell without using the dashboard prompt:
 
